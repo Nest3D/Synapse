@@ -50,13 +50,12 @@ export async function updateCell(
   const user = await requireUser();
   if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
 
-  const target = await prisma.task.findUniqueOrThrow({
+  const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { tabId: true },
+    select: { tabId: true, values: true },
   });
-  await assertFieldVisible(user, target.tabId, fieldKey);
+  await assertFieldVisible(user, task.tabId, fieldKey);
 
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   const values = { ...(task.values as Record<string, unknown>) };
   values[fieldKey] = value;
   await prisma.task.update({
@@ -81,6 +80,7 @@ export async function setAssignees(taskId: string, userIds: string[]) {
   const validIds = valid.map((v) => v.userId);
 
   const key = await personFieldKey(task.tabId);
+  if (key) await assertFieldVisible(user, task.tabId, key);
   const values = { ...(task.values as Record<string, unknown>) };
   if (key) values[key] = validIds;
 
