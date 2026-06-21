@@ -21,17 +21,28 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
     set: (v: string[]) => void,
   ) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
+  const toggleTab = (tab: TabOpt) => {
+    if (tabIds.includes(tab.id)) {
+      setTabIds(tabIds.filter((x) => x !== tab.id));
+      const owned = new Set(tab.fields.map((f) => f.id));
+      setFieldIds(fieldIds.filter((id) => !owned.has(id)));
+    } else {
+      setTabIds([...tabIds, tab.id]);
+    }
+  };
+
   const submit = () => {
     setError(null);
-    start(() =>
-      inviteUser(email, role, tabIds, fieldIds)
-        .then(() => {
-          setEmail("");
-          setTabIds([]);
-          setFieldIds([]);
-        })
-        .catch((e) => setError(e.message)),
-    );
+    start(async () => {
+      const res = await inviteUser(email, role, tabIds, fieldIds);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      setEmail("");
+      setTabIds([]);
+      setFieldIds([]);
+    });
   };
 
   return (
@@ -45,12 +56,14 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
       <div className="mt-4 flex flex-wrap gap-3">
         <input
           type="email"
+          aria-label="Invite email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="person@example.com"
           className="min-w-[16rem] flex-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
         />
         <select
+          aria-label="Role"
           value={role}
           onChange={(e) => setRole(e.target.value as "admin" | "member")}
           className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink"
@@ -69,7 +82,7 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
                 <input
                   type="checkbox"
                   checked={on}
-                  onChange={() => toggle(tab.id, tabIds, setTabIds)}
+                  onChange={() => toggleTab(tab)}
                 />
                 {tab.name}
               </label>

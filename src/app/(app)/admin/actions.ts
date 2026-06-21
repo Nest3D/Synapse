@@ -50,13 +50,13 @@ export async function inviteUser(
   role: "admin" | "member",
   tabIds: string[],
   fieldIds: string[],
-) {
+): Promise<{ error?: string }> {
   await requireAdmin();
   const clean = email.trim().toLowerCase();
-  if (!clean || !clean.includes("@")) throw new Error("Valid email required");
+  if (!clean || !clean.includes("@")) return { error: "Valid email required" };
 
   const exists = await prisma.user.findUnique({ where: { email: clean } });
-  if (exists) throw new Error("That email is already a user");
+  if (exists) return { error: "That email is already a user" };
 
   await prisma.user.create({
     data: {
@@ -68,6 +68,7 @@ export async function inviteUser(
     },
   });
   revalidatePath("/admin/users");
+  return {};
 }
 
 /** Replace a user's tab memberships and field permissions wholesale. */
