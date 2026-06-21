@@ -77,6 +77,7 @@ export async function setUserPermissions(
   fieldIds: string[],
 ) {
   await requireAdmin();
+  await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   await prisma.$transaction([
     prisma.tabMembership.deleteMany({ where: { userId } }),
     prisma.fieldPermission.deleteMany({ where: { userId } }),
@@ -88,6 +89,7 @@ export async function setUserPermissions(
     ),
   ]);
   revalidatePath("/admin/users");
+  revalidatePath("/tab/[tabId]", "page");
 }
 
 /* ---- Tabs ---- */
