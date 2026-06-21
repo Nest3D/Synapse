@@ -35,17 +35,23 @@ export default async function TabPage({
     }),
   ]);
 
-  const memberOptions = members.map((m) => ({
-    id: m.user.id,
-    name: m.user.name ?? m.user.email ?? "Unknown",
-    image: m.user.image,
-  }));
+  // The person column (and its assignee data / member roster) is only sent to
+  // the client when the user may actually view the person field.
+  const personVisible = fields.some((f) => f.type === "person");
+
+  const memberOptions = personVisible
+    ? members.map((m) => ({
+        id: m.user.id,
+        name: m.user.name ?? m.user.email ?? "Unknown",
+        image: m.user.image,
+      }))
+    : [];
 
   const rows = tasks.map((t) => ({
     id: t.id,
     source: t.source,
     values: t.values as Record<string, unknown>,
-    assignees: t.assignees.map((a) => a.userId),
+    assignees: personVisible ? t.assignees.map((a) => a.userId) : [],
   }));
 
   return (
