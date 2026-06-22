@@ -6,15 +6,15 @@
 ---------------------------------------------------------------------------- */
 
 @theme {
-  --color-canvas: #0a0a0c;
-  --color-canvas-2: #0f0f12;
-  --color-surface: #141417;
+  --color-canvas: #000000;
+  --color-canvas-2: #050506;
+  --color-surface: #121215;
   --color-surface-2: #1b1b20;
   --color-elevated: #212127;
   --color-border: #2a2a31;
   --color-border-soft: #1f1f25;
 
-  --color-ink: #ededee;
+  --color-ink: #ffffff;
   --color-muted: #8c8c96;
   --color-faint: #5d5d66;
 
