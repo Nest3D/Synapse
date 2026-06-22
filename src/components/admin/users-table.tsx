@@ -32,7 +32,7 @@ export function UsersTable({
   const [pending, start] = React.useTransition();
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface/30">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-2/60 text-left font-mono text-[11px] uppercase tracking-[0.15em] text-faint">

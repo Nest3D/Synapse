@@ -35,11 +35,11 @@ export default async function ArchivePage() {
       </header>
 
       {tasks.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface/30 px-6 py-12 text-center text-sm text-faint">
+        <div className="rounded-xl border border-border bg-surface card-float px-6 py-12 text-center text-sm text-faint">
           Nothing completed yet.
         </div>
       ) : (
-        <div className="divide-y divide-border-soft overflow-hidden rounded-xl border border-border bg-surface/30">
+        <div className="divide-y divide-border-soft overflow-hidden rounded-xl border border-border bg-surface card-float">
           {tasks.map((t) => (
             <Link
               key={t.id}

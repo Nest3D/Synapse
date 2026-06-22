@@ -49,7 +49,7 @@ export function TaskGrid({
   const personField = fields.find((f) => f.type === "person");
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface/30">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -72,7 +72,7 @@ export function TaskGrid({
                 <motion.tr
                   key={row.id}
                   layout
-                  initial={{ opacity: 0, backgroundColor: "rgba(200,242,78,0.06)" }}
+                  initial={{ opacity: 0, backgroundColor: "rgba(39,71,224,0.07)" }}
                   animate={{ opacity: 1, backgroundColor: "rgba(0,0,0,0)" }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -441,7 +441,7 @@ function PersonCell({
               left: coords.left,
               width: coords.width,
             }}
-            className="glass z-[100] max-h-64 overflow-auto rounded-xl border border-border p-1.5 shadow-2xl shadow-black/50"
+            className="glass card-float z-[100] max-h-64 overflow-auto rounded-xl border border-border p-1.5"
           >
             {members.length === 0 && (
               <p className="px-2 py-3 text-center text-xs text-faint">

@@ -63,7 +63,7 @@ export function EditAccess({
               exit={{ opacity: 0, scale: 0.97, y: 8 }}
               transition={{ duration: 0.15 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass w-full max-w-lg rounded-xl border border-border p-6 shadow-2xl shadow-black/50"
+              className="glass card-float w-full max-w-lg rounded-xl border border-border p-6"
             >
               <h2 className="font-display text-lg font-semibold">Edit access</h2>
               <p className="mt-1 text-sm text-muted">

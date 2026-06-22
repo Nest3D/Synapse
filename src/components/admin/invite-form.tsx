@@ -28,7 +28,7 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
   };
 
   return (
-    <div className="mb-8 rounded-xl border border-border bg-surface/30 p-5">
+    <div className="mb-8 rounded-xl border border-border bg-surface card-float p-5">
       <h2 className="font-display text-lg font-semibold">Invite someone</h2>
       <p className="mt-1 text-sm text-muted">
         Only invited emails can sign in. Leave a tab&apos;s fields unchecked to

@@ -116,7 +116,7 @@ function TabCard({
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface/30">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
       <div className="flex items-center gap-3 px-4 py-3">
         <button
           onClick={onToggle}

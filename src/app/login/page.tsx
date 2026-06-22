@@ -25,7 +25,7 @@ export default async function LoginPage({
       </h1>
 
       <div className="animate-rise relative w-full max-w-md">
-        <div className="glass rounded-[--radius-xl] border border-border p-8 shadow-2xl shadow-black/40">
+        <div className="glass card-float rounded-[--radius-xl] border border-border p-8">
           <Brand size="lg" />
 
           {error === "AccessDenied" && (

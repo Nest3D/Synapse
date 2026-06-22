@@ -8,7 +8,7 @@ const button = cva(
     variants: {
       variant: {
         primary:
-          "bg-accent text-accent-ink hover:bg-accent-dim shadow-[0_0_0_1px_rgba(200,242,78,0.2),0_8px_30px_-12px_rgba(200,242,78,0.5)]",
+          "bg-accent text-accent-ink hover:bg-accent-dim shadow-[0_1px_2px_rgba(25,23,18,0.12),0_10px_28px_-12px_rgba(39,71,224,0.55)]",
         secondary:
           "bg-elevated text-ink border border-border hover:border-faint hover:bg-surface-2",
         ghost: "text-muted hover:text-ink hover:bg-surface-2",
