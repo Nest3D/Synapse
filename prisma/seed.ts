@@ -3,13 +3,13 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const BASE_FIELDS = [
-  { key: "person", label: "Person", type: "person" as const, order: 0 },
   {
     key: "description",
     label: "Task description",
     type: "text" as const,
-    order: 1,
+    order: 0,
   },
+  { key: "person", label: "Person", type: "person" as const, order: 1 },
   { key: "category", label: "Category", type: "text" as const, order: 2 },
   { key: "done", label: "Done", type: "checkbox" as const, order: 3 },
 ];

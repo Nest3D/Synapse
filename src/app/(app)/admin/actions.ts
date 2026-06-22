@@ -108,14 +108,14 @@ export async function createTab(name: string) {
   // Seed the base fields requested by the user.
   await prisma.fieldDef.createMany({
     data: [
-      { tabId: tab.id, key: "person", label: "Person", type: "person", order: 0 },
       {
         tabId: tab.id,
         key: "description",
         label: "Task description",
         type: "text",
-        order: 1,
+        order: 0,
       },
+      { tabId: tab.id, key: "person", label: "Person", type: "person", order: 1 },
       {
         tabId: tab.id,
         key: "category",
