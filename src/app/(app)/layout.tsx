@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser, isAdmin } from "@/lib/access";
 import { signOut } from "@/auth";
 import { Brand } from "@/components/brand";
+import { NavLink } from "@/components/nav-link";
 
 // Every app route depends on the signed-in user + DB; never prerender.
 export const dynamic = "force-dynamic";
@@ -76,16 +77,5 @@ export default async function AppLayout({
         {children}
       </main>
     </div>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-lg px-3 py-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
-    >
-      {children}
-    </Link>
   );
 }
