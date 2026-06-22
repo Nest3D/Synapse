@@ -5,6 +5,7 @@ import {
   canAccessTab,
   getVisibleTasks,
   getVisibleFields,
+  getTab,
   isAdmin,
 } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
@@ -20,11 +21,12 @@ export default async function TabPage({
   const user = await getApprovedUser();
   if (!user) redirect("/login");
 
-  const tabs = await getVisibleTabs(user);
-  if (!(await canAccessTab(user, tabId))) notFound();
-
-  const tab = await prisma.tab.findUnique({ where: { id: tabId } });
-  if (!tab) notFound();
+  const [tabs, access, tab] = await Promise.all([
+    getVisibleTabs(user),
+    canAccessTab(user, tabId),
+    getTab(tabId),
+  ]);
+  if (!access || !tab) notFound();
 
   const [fields, tasks, members] = await Promise.all([
     getVisibleFields(user, tabId),

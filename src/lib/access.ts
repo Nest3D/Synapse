@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveVisibleFieldKeys, stripValuesToVisible } from "@/lib/permissions";
@@ -12,12 +13,14 @@ export type SessionUser = {
   status?: UserStatus;
 };
 
-/** Returns the session user if signed in, else null. */
-export async function getCurrentUser(): Promise<SessionUser | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return session.user as SessionUser;
-}
+/** Returns the session user if signed in, else null. Cached per request. */
+export const getCurrentUser = cache(
+  async (): Promise<SessionUser | null> => {
+    const session = await auth();
+    if (!session?.user?.id) return null;
+    return session.user as SessionUser;
+  },
+);
 
 /** Approved users only. Returns null otherwise (caller redirects). */
 export async function getApprovedUser(): Promise<SessionUser | null> {
@@ -30,8 +33,8 @@ export function isAdmin(user: SessionUser | null): boolean {
   return user?.role === "admin" && user.status === "approved";
 }
 
-/** Tabs the user may see: admin -> all, member -> via membership. */
-export async function getVisibleTabs(user: SessionUser) {
+/** Tabs the user may see: admin -> all, member -> via membership. Cached. */
+export const getVisibleTabs = cache(async (user: SessionUser) => {
   if (isAdmin(user)) {
     return prisma.tab.findMany({ orderBy: { order: "asc" } });
   }
@@ -39,28 +42,32 @@ export async function getVisibleTabs(user: SessionUser) {
     where: { memberships: { some: { userId: user.id } } },
     orderBy: { order: "asc" },
   });
-}
+});
 
-/** True if the user may access a given tab at all. */
-export async function canAccessTab(
-  user: SessionUser,
-  tabId: string,
-): Promise<boolean> {
-  if (isAdmin(user)) {
-    return (await prisma.tab.count({ where: { id: tabId } })) > 0;
-  }
-  const m = await prisma.tabMembership.count({
-    where: { tabId, userId: user.id },
-  });
-  return m > 0;
-}
+/** A single tab by id, cached per request (shared across access checks). */
+export const getTab = cache((tabId: string) =>
+  prisma.tab.findUnique({ where: { id: tabId } }),
+);
+
+/** True if the user may access a given tab at all. Cached per request. */
+export const canAccessTab = cache(
+  async (user: SessionUser, tabId: string): Promise<boolean> => {
+    if (isAdmin(user)) {
+      return (await prisma.tab.count({ where: { id: tabId } })) > 0;
+    }
+    const m = await prisma.tabMembership.count({
+      where: { tabId, userId: user.id },
+    });
+    return m > 0;
+  },
+);
 
 /**
  * Tasks the user may see inside a tab, honoring the tab's visibility mode.
  * Throws if the user has no access to the tab at all.
  */
 export async function getVisibleTasks(user: SessionUser, tabId: string) {
-  const tab = await prisma.tab.findUnique({ where: { id: tabId } });
+  const tab = await getTab(tabId);
   if (!tab) throw new Error("Tab not found");
 
   if (!(await canAccessTab(user, tabId))) {
@@ -108,28 +115,30 @@ export async function canSeeTask(
  * Field definitions a user may VIEW in a tab (ordered). Admin sees all;
  * a user with no FieldPermission rows for the tab sees all; otherwise only granted.
  */
-export async function getVisibleFields(user: SessionUser, tabId: string) {
-  const fields = await prisma.fieldDef.findMany({
-    where: { tabId },
-    orderBy: { order: "asc" },
-  });
-  const admin = isAdmin(user);
-  const granted = admin
-    ? []
-    : (
-        await prisma.fieldPermission.findMany({
-          where: { userId: user.id, field: { tabId } },
-          select: { field: { select: { key: true } } },
-        })
-      ).map((p) => p.field.key);
-  const visibleKeys = resolveVisibleFieldKeys({
-    allKeys: fields.map((f) => f.key),
-    grantedKeys: granted,
-    isAdmin: admin,
-  });
-  const set = new Set(visibleKeys);
-  return fields.filter((f) => set.has(f.key));
-}
+export const getVisibleFields = cache(
+  async (user: SessionUser, tabId: string) => {
+    const fields = await prisma.fieldDef.findMany({
+      where: { tabId },
+      orderBy: { order: "asc" },
+    });
+    const admin = isAdmin(user);
+    const granted = admin
+      ? []
+      : (
+          await prisma.fieldPermission.findMany({
+            where: { userId: user.id, field: { tabId } },
+            select: { field: { select: { key: true } } },
+          })
+        ).map((p) => p.field.key);
+    const visibleKeys = resolveVisibleFieldKeys({
+      allKeys: fields.map((f) => f.key),
+      grantedKeys: granted,
+      isAdmin: admin,
+    });
+    const set = new Set(visibleKeys);
+    return fields.filter((f) => set.has(f.key));
+  },
+);
 
 /** Convenience: just the visible field keys for a tab. */
 export async function getVisibleFieldKeys(
