@@ -17,6 +17,8 @@ export default async function UsersPage() {
         status: true,
         createdAt: true,
         _count: { select: { accounts: true } },
+        memberships: { select: { tabId: true } },
+        fieldPermissions: { select: { fieldId: true } },
       },
     }),
     prisma.tab.findMany({
@@ -59,8 +61,11 @@ export default async function UsersPage() {
         users={users.map((u) => ({
           ...u,
           joined: u._count.accounts > 0,
+          tabIds: u.memberships.map((m) => m.tabId),
+          fieldIds: u.fieldPermissions.map((p) => p.fieldId),
         }))}
         currentUserId={me?.id ?? ""}
+        tabs={tabs}
       />
     </div>
   );

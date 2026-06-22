@@ -3,9 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { inviteUser } from "@/app/(app)/admin/actions";
-
-type FieldOpt = { id: string; key: string; label: string };
-type TabOpt = { id: string; name: string; fields: FieldOpt[] };
+import { PermissionPicker, type TabOpt } from "@/components/admin/permission-picker";
 
 export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
   const [pending, start] = React.useTransition();
@@ -14,22 +12,6 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
   const [tabIds, setTabIds] = React.useState<string[]>([]);
   const [fieldIds, setFieldIds] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
-
-  const toggle = (
-    id: string,
-    list: string[],
-    set: (v: string[]) => void,
-  ) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-  const toggleTab = (tab: TabOpt) => {
-    if (tabIds.includes(tab.id)) {
-      setTabIds(tabIds.filter((x) => x !== tab.id));
-      const owned = new Set(tab.fields.map((f) => f.id));
-      setFieldIds(fieldIds.filter((id) => !owned.has(id)));
-    } else {
-      setTabIds([...tabIds, tab.id]);
-    }
-  };
 
   const submit = () => {
     setError(null);
@@ -73,39 +55,14 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
         </select>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {tabs.map((tab) => {
-          const on = tabIds.includes(tab.id);
-          return (
-            <div key={tab.id} className="rounded-lg border border-border-soft p-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input
-                  type="checkbox"
-                  checked={on}
-                  onChange={() => toggleTab(tab)}
-                />
-                {tab.name}
-              </label>
-              {on && (
-                <div className="mt-2 flex flex-wrap gap-3 pl-6">
-                  {tab.fields.map((f) => (
-                    <label
-                      key={f.id}
-                      className="flex items-center gap-1.5 text-xs text-muted"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={fieldIds.includes(f.id)}
-                        onChange={() => toggle(f.id, fieldIds, setFieldIds)}
-                      />
-                      {f.label}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="mt-4">
+        <PermissionPicker
+          tabs={tabs}
+          tabIds={tabIds}
+          fieldIds={fieldIds}
+          onTabsChange={setTabIds}
+          onFieldsChange={setFieldIds}
+        />
       </div>
 
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}

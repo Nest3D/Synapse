@@ -4,6 +4,8 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { approveUser, removeUser, setRole } from "@/app/(app)/admin/actions";
+import { EditAccess } from "@/components/admin/edit-access";
+import type { TabOpt } from "@/components/admin/permission-picker";
 import { cn } from "@/lib/utils";
 
 type U = {
@@ -14,14 +16,18 @@ type U = {
   role: "admin" | "member";
   status: "pending" | "approved";
   joined: boolean;
+  tabIds: string[];
+  fieldIds: string[];
 };
 
 export function UsersTable({
   users,
   currentUserId,
+  tabs,
 }: {
   users: U[];
   currentUserId: string;
+  tabs: TabOpt[];
 }) {
   const [pending, start] = React.useTransition();
 
@@ -118,6 +124,15 @@ export function UsersTable({
 
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      {u.role === "member" && (
+                        <EditAccess
+                          userId={u.id}
+                          userLabel={u.name ?? u.email ?? "this user"}
+                          tabs={tabs}
+                          initialTabIds={u.tabIds}
+                          initialFieldIds={u.fieldIds}
+                        />
+                      )}
                       {u.status === "pending" && (
                         <Button
                           size="sm"
