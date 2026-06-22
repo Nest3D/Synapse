@@ -248,6 +248,7 @@ function TextCell({
   return (
     <input
       value={local}
+      title={local}
       disabled={disabled}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => local !== value && onSave(local)}
