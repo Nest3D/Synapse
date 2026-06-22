@@ -96,7 +96,7 @@ export function TaskGrid({
                         row={row}
                         field={f}
                         members={members}
-                        disabled={!canEdit || pending}
+                        disabled={!canEdit}
                         onSave={(value) =>
                           startTransition(() =>
                             updateCell(row.id, f.key, value).then(() => {}),
@@ -269,18 +269,30 @@ function CheckCell({
   disabled: boolean;
   onToggle: (v: boolean) => void;
 }) {
+  // Optimistic: reflect the click instantly, then reconcile with the server
+  // value when it arrives after revalidation (same pattern as TextCell).
+  const [local, setLocal] = React.useState(checked);
+  const [prev, setPrev] = React.useState(checked);
+  if (prev !== checked) {
+    setPrev(checked);
+    setLocal(checked);
+  }
   return (
     <button
       disabled={disabled}
-      onClick={() => onToggle(!checked)}
+      onClick={() => {
+        const next = !local;
+        setLocal(next);
+        onToggle(next);
+      }}
       className={cn(
         "flex h-5 w-5 items-center justify-center rounded-[6px] border transition-all",
-        checked
+        local
           ? "border-accent bg-accent text-accent-ink"
           : "border-border bg-surface-2 text-transparent hover:border-faint",
         disabled && "opacity-60",
       )}
-      aria-pressed={checked}
+      aria-pressed={local}
     >
       <Check className="h-3.5 w-3.5" strokeWidth={3} />
     </button>
