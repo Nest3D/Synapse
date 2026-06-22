@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, MessageCircle, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -345,17 +346,53 @@ function PersonCell({
   onChange: (ids: string[]) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = React.useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  // Anchor the portal panel to the trigger; flip upward if it'd overflow the
+  // bottom of the viewport (e.g. the last row near the page bottom).
+  const place = React.useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const estHeight = Math.min(264, 24 + members.length * 40);
+    const spaceBelow = window.innerHeight - r.bottom;
+    const openUp = spaceBelow < estHeight && r.top > spaceBelow;
+    setCoords({
+      top: openUp ? r.top - estHeight - 4 : r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 224),
+    });
+  }, [members.length]);
 
   React.useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
+    place();
+    const reposition = () => place();
+    const onPointer = (e: MouseEvent) => {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
+      }
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open, place]);
 
   const chosen = members.filter((m) => selected.includes(m.id));
 
@@ -368,8 +405,9 @@ function PersonCell({
   };
 
   return (
-    <div ref={ref} className="relative min-w-[11rem]">
+    <div className="relative min-w-[11rem]">
       <button
+        ref={btnRef}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 disabled:opacity-60"
@@ -392,14 +430,18 @@ function PersonCell({
         <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-faint" />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12 }}
-            className="glass absolute z-20 mt-1 max-h-64 w-56 overflow-auto rounded-xl border border-border p-1.5 shadow-2xl shadow-black/50"
+      {open &&
+        coords &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+            }}
+            className="glass z-[100] max-h-64 overflow-auto rounded-xl border border-border p-1.5 shadow-2xl shadow-black/50"
           >
             {members.length === 0 && (
               <p className="px-2 py-3 text-center text-xs text-faint">
@@ -420,9 +462,9 @@ function PersonCell({
                 </button>
               );
             })}
-          </motion.div>
+          </div>,
+          document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }
