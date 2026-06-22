@@ -148,3 +148,68 @@ export async function assertFieldVisible(
   const keys = await getVisibleFieldKeys(user, tabId);
   if (!keys.includes(fieldKey)) throw new Error("Forbidden");
 }
+
+export type ArchivedTask = {
+  id: string;
+  tabId: string;
+  tabName: string;
+  description: string;
+  assignees: { id: string; name: string; image: string | null }[];
+  updatedAt: Date;
+};
+
+/**
+ * Every "done" task across the tabs the user may see, honoring tab access and
+ * row visibility (TAGGED_ONLY → only rows they're assigned to, unless admin).
+ * Sorted newest-completed first.
+ */
+export async function getArchivedTasks(
+  user: SessionUser,
+): Promise<ArchivedTask[]> {
+  const tabs = await getVisibleTabs(user);
+  const admin = isAdmin(user);
+  const out: ArchivedTask[] = [];
+
+  for (const tab of tabs) {
+    const tagOnly = tab.visibilityMode === "TAGGED_ONLY";
+    const tasks = await prisma.task.findMany({
+      where: {
+        tabId: tab.id,
+        values: { path: ["done"], equals: true },
+        ...(admin || !tagOnly
+          ? {}
+          : { assignees: { some: { userId: user.id } } }),
+      },
+      include: {
+        assignees: {
+          include: {
+            user: { select: { id: true, name: true, email: true, image: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    for (const t of tasks) {
+      const values = t.values as Record<string, unknown>;
+      out.push({
+        id: t.id,
+        tabId: tab.id,
+        tabName: tab.name,
+        description:
+          typeof values["description"] === "string"
+            ? (values["description"] as string)
+            : "",
+        assignees: t.assignees.map((a) => ({
+          id: a.user.id,
+          name: a.user.name ?? a.user.email ?? "Unknown",
+          image: a.user.image,
+        })),
+        updatedAt: t.updatedAt,
+      });
+    }
+  }
+
+  out.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return out;
+}
