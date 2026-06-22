@@ -13,7 +13,7 @@ export default async function BoardHome() {
   return (
     <div className="animate-rise flex min-h-[60vh] flex-col items-center justify-center text-center">
       <p className="font-mono text-xs uppercase tracking-[0.3em] text-faint">
-        Empty board
+        No tasks
       </p>
       <h2 className="mt-4 max-w-md font-display text-3xl font-bold tracking-tight">
         Nothing scoped to you yet
