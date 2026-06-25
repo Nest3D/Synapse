@@ -39,7 +39,7 @@ export default async function AppLayout({
             ))}
             <NavLink href="/archive">Archive</NavLink>
             {admin && <NavLink href="/people">People</NavLink>}
-            {admin && <NavLink href="/admin/tabs">Tabs</NavLink>}
+            {admin && <NavLink href="/admin/tabs">Brood</NavLink>}
           </nav>
 
           <div className="ml-auto flex items-center gap-3">

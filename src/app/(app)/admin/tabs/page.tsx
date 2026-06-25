@@ -51,7 +51,7 @@ export default async function TabsPage() {
           Admin
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight">
-          Tabs
+          Brood
         </h1>
         <p className="mt-1 text-sm text-muted">
           Project groups. Control who&apos;s in, what columns exist, and whether
