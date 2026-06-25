@@ -9,6 +9,8 @@ export default async function PeoplePage() {
   const me = await getCurrentUser();
   if (!me) redirect("/login");
   const admin = isAdminUser(me);
+  // People tab is admin-only.
+  if (!admin) redirect("/");
 
   const [users, tabs, groups] = await Promise.all([
     prisma.user.findMany({

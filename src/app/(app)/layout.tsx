@@ -30,7 +30,7 @@ export default async function AppLayout({
           </Link>
 
           <nav className="ml-2 flex flex-wrap items-center gap-1 text-sm">
-            <NavLink href="/">Tasks</NavLink>
+            <NavLink href="/">All Tasks</NavLink>
             <NavLink href="/my-tasks">My Tasks</NavLink>
             {groups.map((g) => (
               <NavLink key={g.id} href={`/group/${g.id}`}>
@@ -38,7 +38,7 @@ export default async function AppLayout({
               </NavLink>
             ))}
             <NavLink href="/archive">Archive</NavLink>
-            <NavLink href="/people">People</NavLink>
+            {admin && <NavLink href="/people">People</NavLink>}
             {admin && <NavLink href="/admin/tabs">Tabs</NavLink>}
           </nav>
 
