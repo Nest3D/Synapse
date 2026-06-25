@@ -58,17 +58,17 @@ export function TabsManager({
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="New tab name (e.g. Marketing)"
+          placeholder="New brood name (e.g. Marketing)"
           className="flex-1 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-accent/50"
         />
         <Button type="submit" disabled={pending}>
-          <Plus className="h-4 w-4" /> Create tab
+          <Plus className="h-4 w-4" /> Create brood
         </Button>
       </form>
 
       {tabs.length === 0 && (
         <p className="rounded-xl border border-dashed border-border py-12 text-center text-sm text-faint">
-          No tabs yet. Create one above.
+          No broods yet. Create one above.
         </p>
       )}
 
@@ -155,7 +155,7 @@ function TabCard({
               start(() => deleteTab(tab.id).then(() => {}));
           }}
           className="rounded-md p-1.5 text-faint transition-colors hover:bg-danger/10 hover:text-danger"
-          aria-label="Delete tab"
+          aria-label="Delete brood"
         >
           <Trash2 className="h-4 w-4" />
         </button>

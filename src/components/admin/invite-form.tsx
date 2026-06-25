@@ -31,8 +31,8 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
     <div className="mb-8 rounded-xl border border-border bg-surface card-float p-5">
       <h2 className="font-display text-lg font-semibold">Invite someone</h2>
       <p className="mt-1 text-sm text-muted">
-        Only invited emails can sign in. Leave a tab&apos;s fields unchecked to
-        grant all columns.
+        Only invited emails can sign in. Leave a brood&apos;s fields unchecked
+        to grant all columns.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-3">

@@ -67,8 +67,8 @@ export function EditAccess({
             >
               <h2 className="font-display text-lg font-semibold">Edit access</h2>
               <p className="mt-1 text-sm text-muted">
-                Tabs and fields {userLabel} can see. Leave a tab&apos;s fields
-                unchecked to grant all columns.
+                Broods and fields {userLabel} can see. Leave a brood&apos;s
+                fields unchecked to grant all columns.
               </p>
 
               <div className="mt-4 max-h-[55vh] overflow-y-auto pr-1">
