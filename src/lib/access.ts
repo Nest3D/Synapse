@@ -33,6 +33,20 @@ export function isAdmin(user: SessionUser | null): boolean {
   return user?.role === "admin" && user.status === "approved";
 }
 
+/**
+ * Prisma `where` fragment: a task is "tagged" for a user if they're a direct
+ * assignee OR a member of a group tagged on the task. This is the single rule
+ * used everywhere visibility is computed (home tabs, My Tasks, group tabs).
+ */
+export function taggedForUserWhere(userId: string) {
+  return {
+    OR: [
+      { assignees: { some: { userId } } },
+      { groupTags: { some: { group: { members: { some: { userId } } } } } },
+    ],
+  };
+}
+
 /** Tabs the user may see: admin -> all, member -> via membership. Cached. */
 export const getVisibleTabs = cache(async (user: SessionUser) => {
   if (isAdmin(user)) {
@@ -80,11 +94,12 @@ export async function getVisibleTasks(user: SessionUser, tabId: string) {
   const tasks = await prisma.task.findMany({
     where: {
       tabId,
-      ...(admin || !tagOnly
-        ? {}
-        : { assignees: { some: { userId: user.id } } }),
+      ...(admin || !tagOnly ? {} : taggedForUserWhere(user.id)),
     },
-    include: { assignees: { include: { user: true } } },
+    include: {
+      assignees: { include: { user: true } },
+      groupTags: { select: { groupId: true } },
+    },
     orderBy: { position: "asc" },
   });
 
@@ -102,13 +117,20 @@ export async function canSeeTask(
 ): Promise<boolean> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { tab: true, assignees: true },
+    include: {
+      tab: true,
+      assignees: true,
+      groupTags: { select: { group: { select: { members: { select: { userId: true } } } } } },
+    },
   });
   if (!task) return false;
   if (!(await canAccessTab(user, task.tabId))) return false;
   if (isAdmin(user)) return true;
   if (task.tab.visibilityMode === "ALL_ROWS") return true;
-  return task.assignees.some((a) => a.userId === user.id);
+  if (task.assignees.some((a) => a.userId === user.id)) return true;
+  return task.groupTags.some((gt) =>
+    gt.group.members.some((m) => m.userId === user.id),
+  );
 }
 
 /**
@@ -185,9 +207,7 @@ export async function getArchivedTasks(
       where: {
         tabId: tab.id,
         values: { path: ["done"], equals: true },
-        ...(admin || !tagOnly
-          ? {}
-          : { assignees: { some: { userId: user.id } } }),
+        ...(admin || !tagOnly ? {} : taggedForUserWhere(user.id)),
       },
       include: {
         assignees: {
@@ -221,4 +241,178 @@ export async function getArchivedTasks(
 
   out.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   return out;
+}
+
+/* ---------------- Groups ---------------- */
+
+/** Top-bar navigation for a user: visible tabs + the groups they belong to. */
+export const getNavForUser = cache(async (user: SessionUser) => {
+  const [tabs, groups] = await Promise.all([
+    getVisibleTabs(user),
+    prisma.group.findMany({
+      where: { members: { some: { userId: user.id } } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+  return { tabs, groups };
+});
+
+/** Groups that can be tagged on a task (all groups; with member counts). */
+export const getTaggableGroups = cache(async () =>
+  prisma.group.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, _count: { select: { members: true } } },
+  }),
+);
+
+/** A user may VIEW a group's tab if they're a member, or an admin. */
+export async function canViewGroup(
+  user: SessionUser,
+  groupId: string,
+): Promise<boolean> {
+  if (isAdmin(user)) return (await prisma.group.count({ where: { id: groupId } })) > 0;
+  return (
+    (await prisma.groupMembership.count({
+      where: { groupId, userId: user.id },
+    })) > 0
+  );
+}
+
+/** A user may EDIT a group (rename/delete/membership) if creator or admin. */
+export async function canEditGroup(
+  user: SessionUser,
+  groupId: string,
+): Promise<boolean> {
+  if (isAdmin(user)) return true;
+  const g = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { createdById: true },
+  });
+  return g?.createdById === user.id;
+}
+
+/* ---------------- Virtual aggregate views (My Tasks / group tabs) ---------------- */
+
+export type GridSection = {
+  tabId: string;
+  tabName: string;
+  fields: { key: string; label: string; type: string; options: string[] }[];
+  members: { id: string; name: string; image: string | null }[];
+  rows: {
+    id: string;
+    source: "manual" | "whatsapp";
+    values: Record<string, unknown>;
+    assignees: string[];
+    groups: string[];
+  }[];
+};
+
+type RawTask = {
+  id: string;
+  tabId: string;
+  source: "manual" | "whatsapp";
+  values: unknown;
+  assignees: { userId: string }[];
+  groupTags: { groupId: string }[];
+};
+
+/**
+ * Group an aggregate task list by home tab and render each section with that
+ * tab's visible fields, member roster, and per-field-permission value masking.
+ * Sections are ordered by the tab's display order.
+ */
+async function buildSections(
+  user: SessionUser,
+  tasks: RawTask[],
+): Promise<GridSection[]> {
+  const byTab = new Map<string, RawTask[]>();
+  for (const t of tasks) {
+    const list = byTab.get(t.tabId);
+    if (list) list.push(t);
+    else byTab.set(t.tabId, [t]);
+  }
+
+  const sections: { order: number; section: GridSection }[] = [];
+  for (const [tabId, group] of byTab) {
+    const tab = await getTab(tabId);
+    if (!tab) continue;
+    const fields = await getVisibleFields(user, tabId);
+    const personVisible = fields.some((f) => f.type === "person");
+    const visibleKeys = fields.map((f) => f.key);
+
+    const members = personVisible
+      ? (
+          await prisma.tabMembership.findMany({
+            where: { tabId },
+            include: {
+              user: { select: { id: true, name: true, email: true, image: true } },
+            },
+          })
+        ).map((m) => ({
+          id: m.user.id,
+          name: m.user.name ?? m.user.email ?? "Unknown",
+          image: m.user.image,
+        }))
+      : [];
+
+    sections.push({
+      order: tab.order,
+      section: {
+        tabId,
+        tabName: tab.name,
+        fields: fields.map((f) => ({
+          key: f.key,
+          label: f.label,
+          type: f.type as string,
+          options: (f.options as string[] | null) ?? [],
+        })),
+        members,
+        rows: group.map((t) => ({
+          id: t.id,
+          source: t.source,
+          values: stripValuesToVisible(
+            t.values as Record<string, unknown>,
+            visibleKeys,
+          ),
+          assignees: personVisible ? t.assignees.map((a) => a.userId) : [],
+          groups: personVisible ? t.groupTags.map((g) => g.groupId) : [],
+        })),
+      },
+    });
+  }
+
+  sections.sort((a, b) => a.order - b.order);
+  return sections.map((s) => s.section);
+}
+
+/** "My Tasks": every task across all tabs the user is tagged on (direct or via a group). */
+export async function getMyTaskSections(
+  user: SessionUser,
+): Promise<GridSection[]> {
+  const tasks = await prisma.task.findMany({
+    where: taggedForUserWhere(user.id),
+    include: {
+      assignees: { select: { userId: true } },
+      groupTags: { select: { groupId: true } },
+    },
+    orderBy: [{ tabId: "asc" }, { position: "asc" }],
+  });
+  return buildSections(user, tasks as RawTask[]);
+}
+
+/** A group tab: every task this group is tagged on, grouped by home tab. */
+export async function getGroupTaskSections(
+  user: SessionUser,
+  groupId: string,
+): Promise<GridSection[]> {
+  const tasks = await prisma.task.findMany({
+    where: { groupTags: { some: { groupId } } },
+    include: {
+      assignees: { select: { userId: true } },
+      groupTags: { select: { groupId: true } },
+    },
+    orderBy: [{ tabId: "asc" }, { position: "asc" }],
+  });
+  return buildSections(user, tasks as RawTask[]);
 }

@@ -97,6 +97,34 @@ export async function setAssignees(taskId: string, userIds: string[]) {
   revalidatePath(`/tab/${task.tabId}`);
 }
 
+/** Set the live group tags for a task (parallel to person assignees). */
+export async function setTaskGroups(taskId: string, groupIds: string[]) {
+  const user = await requireUser();
+  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
+
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+
+  // The person field gates who may edit tagging on this task.
+  const key = await personFieldKey(task.tabId);
+  if (key) await assertFieldVisible(user, task.tabId, key);
+
+  const valid = await prisma.group.findMany({
+    where: { id: { in: groupIds } },
+    select: { id: true },
+  });
+  const validIds = valid.map((g) => g.id);
+
+  await prisma.$transaction([
+    prisma.taskGroupAssignee.deleteMany({ where: { taskId } }),
+    ...validIds.map((groupId) =>
+      prisma.taskGroupAssignee.create({ data: { taskId, groupId } }),
+    ),
+  ]);
+  revalidatePath(`/tab/${task.tabId}`);
+  revalidatePath("/my-tasks");
+  revalidatePath("/group/[groupId]", "page");
+}
+
 /** Admin: reorder is out of scope v1; expose simple position bump if needed. */
 export async function moveRow(taskId: string, direction: "up" | "down") {
   const user = await requireUser();

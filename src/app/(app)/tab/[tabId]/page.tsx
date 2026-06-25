@@ -6,6 +6,7 @@ import {
   getVisibleTasks,
   getVisibleFields,
   getTab,
+  getTaggableGroups,
   isAdmin,
 } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
@@ -49,11 +50,20 @@ export default async function TabPage({
       }))
     : [];
 
+  const groupOptions = personVisible
+    ? (await getTaggableGroups()).map((g) => ({
+        id: g.id,
+        name: g.name,
+        count: g._count.members,
+      }))
+    : [];
+
   const rows = tasks.map((t) => ({
     id: t.id,
     source: t.source,
     values: t.values as Record<string, unknown>,
     assignees: personVisible ? t.assignees.map((a) => a.userId) : [],
+    groups: personVisible ? t.groupTags.map((g) => g.groupId) : [],
   }));
 
   return (
@@ -88,6 +98,7 @@ export default async function TabPage({
           }))}
           rows={rows}
           members={memberOptions}
+          groups={groupOptions}
           canEdit
           isAdmin={isAdmin(user)}
         />

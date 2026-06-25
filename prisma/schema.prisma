@@ -54,6 +54,8 @@ model User {
   memberships      TabMembership[]
   assignments      TaskAssignee[]
   fieldPermissions FieldPermission[]
+  groupsCreated    Group[]           @relation("GroupCreator")
+  groupMemberships GroupMembership[]
 }
 
 model Account {
@@ -140,6 +142,7 @@ model Task {
   updatedAt DateTime   @updatedAt
   tab       Tab        @relation(fields: [tabId], references: [id], onDelete: Cascade)
   assignees TaskAssignee[]
+  groupTags TaskGroupAssignee[]
 
   @@index([tabId])
 }
@@ -166,6 +169,45 @@ model FieldPermission {
   @@unique([userId, fieldId])
   @@index([userId])
   @@index([fieldId])
+}
+
+// ---- Groups: taggable sets of members with live membership ----
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy User                @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members   GroupMembership[]
+  taskTags  TaskGroupAssignee[]
+
+  @@index([createdById])
+}
+
+model GroupMembership {
+  id      String @id @default(cuid())
+  groupId String
+  userId  String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId])
+}
+
+// A live group tag on a task: whoever is in the group right now is "tagged".
+model TaskGroupAssignee {
+  id      String @id @default(cuid())
+  taskId  String
+  groupId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, groupId])
+  @@index([groupId])
+  @@index([taskId])
 }
 
 model WhatsAppLog {

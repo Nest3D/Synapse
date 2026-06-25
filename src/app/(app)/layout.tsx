@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isAdmin } from "@/lib/access";
+import { getCurrentUser, getNavForUser, isAdmin } from "@/lib/access";
 import { signOut } from "@/auth";
 import { Brand } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
@@ -18,6 +18,7 @@ export default async function AppLayout({
   if (user.status !== "approved") redirect("/pending");
 
   const admin = isAdmin(user);
+  const { groups } = await getNavForUser(user);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -27,10 +28,16 @@ export default async function AppLayout({
             <Brand size="md" />
           </Link>
 
-          <nav className="ml-2 flex items-center gap-1 text-sm">
+          <nav className="ml-2 flex flex-wrap items-center gap-1 text-sm">
             <NavLink href="/">Tasks</NavLink>
+            <NavLink href="/my-tasks">My Tasks</NavLink>
+            {groups.map((g) => (
+              <NavLink key={g.id} href={`/group/${g.id}`}>
+                {g.name}
+              </NavLink>
+            ))}
             <NavLink href="/archive">Archive</NavLink>
-            {admin && <NavLink href="/admin/users">People</NavLink>}
+            <NavLink href="/people">People</NavLink>
             {admin && <NavLink href="/admin/tabs">Tabs</NavLink>}
           </nav>
 

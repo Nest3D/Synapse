@@ -3,13 +3,14 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, MessageCircle, Check, ChevronDown } from "lucide-react";
+import { Plus, Trash2, MessageCircle, Check, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addRow,
   deleteRow,
   updateCell,
   setAssignees,
+  setTaskGroups,
 } from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
@@ -22,12 +23,14 @@ export type FieldCol = {
 };
 
 export type Member = { id: string; name: string; image?: string | null };
+export type GroupOpt = { id: string; name: string; count?: number };
 
 export type Row = {
   id: string;
   source: "manual" | "whatsapp";
   values: Record<string, unknown>;
   assignees: string[];
+  groups: string[];
 };
 
 export function TaskGrid({
@@ -35,13 +38,17 @@ export function TaskGrid({
   fields,
   rows,
   members,
+  groups = [],
   canEdit,
+  canAdd = true,
 }: {
   tabId: string;
   fields: FieldCol[];
   rows: Row[];
   members: Member[];
+  groups?: GroupOpt[];
   canEdit: boolean;
+  canAdd?: boolean;
   isAdmin: boolean;
 }) {
   const [pending, startTransition] = React.useTransition();
@@ -97,6 +104,7 @@ export function TaskGrid({
                         row={row}
                         field={f}
                         members={members}
+                        groups={groups}
                         disabled={!canEdit}
                         onSave={(value) =>
                           startTransition(() =>
@@ -106,6 +114,11 @@ export function TaskGrid({
                         onAssign={(ids) =>
                           startTransition(() =>
                             setAssignees(row.id, ids).then(() => {}),
+                          )
+                        }
+                        onAssignGroups={(ids) =>
+                          startTransition(() =>
+                            setTaskGroups(row.id, ids).then(() => {}),
                           )
                         }
                       />
@@ -140,7 +153,7 @@ export function TaskGrid({
         </div>
       )}
 
-      {canEdit && (
+      {canEdit && canAdd && (
         <div className="border-t border-border-soft p-2">
           <button
             onClick={() => startTransition(() => addRow(tabId).then(() => {}))}
@@ -167,16 +180,20 @@ function Cell({
   row,
   field,
   members,
+  groups,
   disabled,
   onSave,
   onAssign,
+  onAssignGroups,
 }: {
   row: Row;
   field: FieldCol;
   members: Member[];
+  groups: GroupOpt[];
   disabled: boolean;
   onSave: (value: unknown) => void;
   onAssign: (ids: string[]) => void;
+  onAssignGroups: (ids: string[]) => void;
 }) {
   const raw = row.values[field.key];
 
@@ -213,10 +230,13 @@ function Cell({
     case "person":
       return (
         <PersonCell
-          selected={row.assignees}
+          selectedUsers={row.assignees}
+          selectedGroups={row.groups}
           members={members}
+          groups={groups}
           disabled={disabled}
-          onChange={onAssign}
+          onChangeUsers={onAssign}
+          onChangeGroups={onAssignGroups}
         />
       );
     default:
@@ -335,15 +355,21 @@ function SelectCell({
 }
 
 function PersonCell({
-  selected,
+  selectedUsers,
+  selectedGroups,
   members,
+  groups,
   disabled,
-  onChange,
+  onChangeUsers,
+  onChangeGroups,
 }: {
-  selected: string[];
+  selectedUsers: string[];
+  selectedGroups: string[];
   members: Member[];
+  groups: GroupOpt[];
   disabled: boolean;
-  onChange: (ids: string[]) => void;
+  onChangeUsers: (ids: string[]) => void;
+  onChangeGroups: (ids: string[]) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [coords, setCoords] = React.useState<{
@@ -354,13 +380,15 @@ function PersonCell({
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
 
+  const rowCount = members.length + groups.length;
+
   // Anchor the portal panel to the trigger; flip upward if it'd overflow the
   // bottom of the viewport (e.g. the last row near the page bottom).
   const place = React.useCallback(() => {
     const el = btnRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const estHeight = Math.min(264, 24 + members.length * 40);
+    const estHeight = Math.min(264, 24 + rowCount * 40);
     const spaceBelow = window.innerHeight - r.bottom;
     const openUp = spaceBelow < estHeight && r.top > spaceBelow;
     setCoords({
@@ -368,7 +396,7 @@ function PersonCell({
       left: r.left,
       width: Math.max(r.width, 224),
     });
-  }, [members.length]);
+  }, [rowCount]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -394,15 +422,21 @@ function PersonCell({
     };
   }, [open, place]);
 
-  const chosen = members.filter((m) => selected.includes(m.id));
+  const chosenUsers = members.filter((m) => selectedUsers.includes(m.id));
+  const chosenGroups = groups.filter((g) => selectedGroups.includes(g.id));
 
-  const toggle = (id: string) => {
-    onChange(
-      selected.includes(id)
-        ? selected.filter((x) => x !== id)
-        : [...selected, id],
+  const toggleUser = (id: string) =>
+    onChangeUsers(
+      selectedUsers.includes(id)
+        ? selectedUsers.filter((x) => x !== id)
+        : [...selectedUsers, id],
     );
-  };
+  const toggleGroup = (id: string) =>
+    onChangeGroups(
+      selectedGroups.includes(id)
+        ? selectedGroups.filter((x) => x !== id)
+        : [...selectedGroups, id],
+    );
 
   return (
     <div className="relative min-w-[11rem]">
@@ -412,11 +446,20 @@ function PersonCell({
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2 disabled:opacity-60"
       >
-        {chosen.length === 0 ? (
+        {chosenUsers.length === 0 && chosenGroups.length === 0 ? (
           <span className="text-faint">— unassigned</span>
         ) : (
           <span className="flex flex-wrap gap-1">
-            {chosen.map((m) => (
+            {chosenGroups.map((g) => (
+              <span
+                key={g.id}
+                className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/15 py-0.5 pl-1.5 pr-2 text-xs font-medium text-accent"
+              >
+                <Users className="h-3 w-3" />
+                {g.name}
+              </span>
+            ))}
+            {chosenUsers.map((m) => (
               <span
                 key={m.id}
                 className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 py-0.5 pl-0.5 pr-2 text-xs text-accent"
@@ -443,17 +486,48 @@ function PersonCell({
             }}
             className="glass card-float z-[100] max-h-64 overflow-auto rounded-xl border border-border p-1.5"
           >
-            {members.length === 0 && (
+            {rowCount === 0 && (
               <p className="px-2 py-3 text-center text-xs text-faint">
                 No members in this tab.
               </p>
             )}
+
+            {groups.length > 0 && (
+              <p className="px-2 pb-1 pt-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
+                Groups
+              </p>
+            )}
+            {groups.map((g) => {
+              const on = selectedGroups.includes(g.id);
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => toggleGroup(g.id)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-surface-2"
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-accent">
+                    <Users className="h-3 w-3" />
+                  </span>
+                  <span className="truncate text-ink">{g.name}</span>
+                  {typeof g.count === "number" && (
+                    <span className="text-[10px] text-faint">{g.count}</span>
+                  )}
+                  {on && <Check className="ml-auto h-4 w-4 text-accent" />}
+                </button>
+              );
+            })}
+
+            {groups.length > 0 && members.length > 0 && (
+              <p className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
+                People
+              </p>
+            )}
             {members.map((m) => {
-              const on = selected.includes(m.id);
+              const on = selectedUsers.includes(m.id);
               return (
                 <button
                   key={m.id}
-                  onClick={() => toggle(m.id)}
+                  onClick={() => toggleUser(m.id)}
                   className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-surface-2"
                 >
                   <Avatar member={m} />

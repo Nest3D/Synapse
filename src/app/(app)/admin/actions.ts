@@ -27,14 +27,14 @@ export async function approveUser(userId: string) {
     where: { id: userId },
     data: { status: "approved" },
   });
-  revalidatePath("/admin/users");
+  revalidatePath("/people");
 }
 
 export async function removeUser(userId: string) {
   const admin = await requireAdmin();
   if (admin.id === userId) throw new Error("You can't remove yourself");
   await prisma.user.delete({ where: { id: userId } });
-  revalidatePath("/admin/users");
+  revalidatePath("/people");
 }
 
 export async function setRole(userId: string, role: "admin" | "member") {
@@ -42,7 +42,7 @@ export async function setRole(userId: string, role: "admin" | "member") {
   if (admin.id === userId && role === "member")
     throw new Error("You can't demote yourself");
   await prisma.user.update({ where: { id: userId }, data: { role } });
-  revalidatePath("/admin/users");
+  revalidatePath("/people");
 }
 
 export async function inviteUser(
@@ -67,7 +67,7 @@ export async function inviteUser(
       fieldPermissions: { create: fieldIds.map((fieldId) => ({ fieldId })) },
     },
   });
-  revalidatePath("/admin/users");
+  revalidatePath("/people");
   return {};
 }
 
@@ -89,7 +89,7 @@ export async function setUserPermissions(
       prisma.fieldPermission.create({ data: { userId, fieldId } }),
     ),
   ]);
-  revalidatePath("/admin/users");
+  revalidatePath("/people");
   revalidatePath("/tab/[tabId]", "page");
 }
 
