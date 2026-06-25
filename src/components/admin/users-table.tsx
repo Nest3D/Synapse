@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { approveUser, removeUser, setRole } from "@/app/(app)/admin/actions";
+import { setNickname } from "@/app/(app)/people/actions";
 import { EditAccess } from "@/components/admin/edit-access";
 import type { TabOpt } from "@/components/admin/permission-picker";
 import { cn } from "@/lib/utils";
@@ -11,6 +13,7 @@ import { cn } from "@/lib/utils";
 type U = {
   id: string;
   name: string | null;
+  nickname: string | null;
   email: string | null;
   image: string | null;
   role: "admin" | "member";
@@ -74,11 +77,20 @@ export function UsersTable({
                       )}
                       <div className="min-w-0">
                         <div className="truncate font-medium text-ink">
-                          {u.name ?? "—"} {self && <span className="text-faint">(you)</span>}
+                          {u.nickname ?? u.name ?? "—"}{" "}
+                          {self && <span className="text-faint">(you)</span>}
                         </div>
+                        {u.nickname && u.name && (
+                          <div className="truncate text-xs text-muted">
+                            {u.name}
+                          </div>
+                        )}
                         <div className="truncate font-mono text-xs text-faint">
                           {u.email}
                         </div>
+                        {(isAdmin || self) && (
+                          <NicknameEditor userId={u.id} initial={u.nickname} />
+                        )}
                       </div>
                     </div>
                   </td>
@@ -207,5 +219,60 @@ export function UsersTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Inline nickname editor: a pencil toggle that becomes a save-on-blur input. */
+function NicknameEditor({
+  userId,
+  initial,
+}: {
+  userId: string;
+  initial: string | null;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [val, setVal] = React.useState(initial ?? "");
+  const [pending, start] = React.useTransition();
+
+  // Reconcile with the server value after a save revalidates.
+  const [prev, setPrev] = React.useState(initial ?? "");
+  if ((initial ?? "") !== prev) {
+    setPrev(initial ?? "");
+    setVal(initial ?? "");
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-ink"
+      >
+        <Pencil className="h-3 w-3" />
+        {initial ? "edit nickname" : "add nickname"}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      value={val}
+      disabled={pending}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setVal(initial ?? "");
+          setEditing(false);
+        }
+      }}
+      onBlur={() => {
+        setEditing(false);
+        if (val.trim() !== (initial ?? ""))
+          start(() => setNickname(userId, val).then(() => {}));
+      }}
+      placeholder="nickname"
+      className="mt-1 w-32 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+    />
   );
 }

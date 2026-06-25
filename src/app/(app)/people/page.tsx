@@ -16,6 +16,7 @@ export default async function PeoplePage() {
       select: {
         id: true,
         name: true,
+        nickname: true,
         email: true,
         image: true,
         role: true,
@@ -107,6 +108,7 @@ export default async function PeoplePage() {
         users={users.map((u) => ({
           id: u.id,
           name: u.name,
+          nickname: u.nickname,
           email: u.email,
           image: u.image,
         }))}

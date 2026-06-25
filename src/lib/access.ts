@@ -212,7 +212,15 @@ export async function getArchivedTasks(
       include: {
         assignees: {
           include: {
-            user: { select: { id: true, name: true, email: true, image: true } },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                nickname: true,
+                email: true,
+                image: true,
+              },
+            },
           },
         },
       },
@@ -231,7 +239,7 @@ export async function getArchivedTasks(
             : "",
         assignees: t.assignees.map((a) => ({
           id: a.user.id,
-          name: a.user.name ?? a.user.email ?? "Unknown",
+          name: a.user.nickname ?? a.user.name ?? a.user.email ?? "Unknown",
           image: a.user.image,
         })),
         updatedAt: t.updatedAt,
@@ -247,15 +255,19 @@ export async function getArchivedTasks(
 
 /** Top-bar navigation for a user: visible tabs + the groups they belong to. */
 export const getNavForUser = cache(async (user: SessionUser) => {
-  const [tabs, groups] = await Promise.all([
+  const [tabs, groups, record] = await Promise.all([
     getVisibleTabs(user),
     prisma.group.findMany({
       where: { members: { some: { userId: user.id } } },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { nickname: true },
+    }),
   ]);
-  return { tabs, groups };
+  return { tabs, groups, nickname: record?.nickname ?? null };
 });
 
 /** Groups that can be tagged on a task (all groups; with member counts). */
@@ -346,12 +358,20 @@ async function buildSections(
           await prisma.tabMembership.findMany({
             where: { tabId },
             include: {
-              user: { select: { id: true, name: true, email: true, image: true } },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  nickname: true,
+                  email: true,
+                  image: true,
+                },
+              },
             },
           })
         ).map((m) => ({
           id: m.user.id,
-          name: m.user.name ?? m.user.email ?? "Unknown",
+          name: m.user.nickname ?? m.user.name ?? m.user.email ?? "Unknown",
           image: m.user.image,
         }))
       : [];

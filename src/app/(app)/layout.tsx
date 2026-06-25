@@ -18,7 +18,8 @@ export default async function AppLayout({
   if (user.status !== "approved") redirect("/pending");
 
   const admin = isAdmin(user);
-  const { groups } = await getNavForUser(user);
+  const { groups, nickname } = await getNavForUser(user);
+  const displayName = nickname ?? user.name ?? user.email;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -57,11 +58,11 @@ export default async function AppLayout({
                 />
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-xs font-semibold uppercase">
-                  {(user.name ?? user.email ?? "?").slice(0, 1)}
+                  {(displayName ?? "?").slice(0, 1)}
                 </div>
               )}
               <span className="hidden max-w-[140px] truncate text-sm text-muted md:block">
-                {user.name ?? user.email}
+                {displayName}
               </span>
             </div>
             <form

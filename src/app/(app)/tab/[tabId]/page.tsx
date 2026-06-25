@@ -34,7 +34,17 @@ export default async function TabPage({
     getVisibleTasks(user, tabId),
     prisma.tabMembership.findMany({
       where: { tabId },
-      include: { user: { select: { id: true, name: true, email: true, image: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            nickname: true,
+            email: true,
+            image: true,
+          },
+        },
+      },
     }),
   ]);
 
@@ -45,7 +55,7 @@ export default async function TabPage({
   const memberOptions = personVisible
     ? members.map((m) => ({
         id: m.user.id,
-        name: m.user.name ?? m.user.email ?? "Unknown",
+        name: m.user.nickname ?? m.user.name ?? m.user.email ?? "Unknown",
         image: m.user.image,
       }))
     : [];

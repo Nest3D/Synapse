@@ -14,6 +14,7 @@ import {
 export type UserOpt = {
   id: string;
   name: string | null;
+  nickname: string | null;
   email: string | null;
   image: string | null;
 };
@@ -26,7 +27,7 @@ export type GroupView = {
   memberIds: string[];
 };
 
-const label = (u: UserOpt) => u.name ?? u.email ?? "Unknown";
+const label = (u: UserOpt) => u.nickname ?? u.name ?? u.email ?? "Unknown";
 
 /** Create groups (any member) and manage the ones you own (or any, if admin). */
 export function GroupsPanel({
