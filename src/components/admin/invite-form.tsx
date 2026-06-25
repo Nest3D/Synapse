@@ -3,27 +3,22 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { inviteUser } from "@/app/(app)/admin/actions";
-import { PermissionPicker, type TabOpt } from "@/components/admin/permission-picker";
 
-export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
+export function InviteForm() {
   const [pending, start] = React.useTransition();
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<"admin" | "member">("member");
-  const [tabIds, setTabIds] = React.useState<string[]>([]);
-  const [fieldIds, setFieldIds] = React.useState<string[]>([]);
   const [error, setError] = React.useState<string | null>(null);
 
   const submit = () => {
     setError(null);
     start(async () => {
-      const res = await inviteUser(email, role, tabIds, fieldIds);
+      const res = await inviteUser(email, role);
       if (res?.error) {
         setError(res.error);
         return;
       }
       setEmail("");
-      setTabIds([]);
-      setFieldIds([]);
     });
   };
 
@@ -31,8 +26,8 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
     <div className="mb-8 rounded-xl border border-border bg-surface card-float p-5">
       <h2 className="font-display text-lg font-semibold">Invite someone</h2>
       <p className="mt-1 text-sm text-muted">
-        Only invited emails can sign in. Leave a brood&apos;s fields unchecked
-        to grant all columns.
+        Only invited emails can sign in. Grant them access to broods and columns
+        below.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-3">
@@ -53,25 +48,12 @@ export function InviteForm({ tabs }: { tabs: TabOpt[] }) {
           <option value="member">member</option>
           <option value="admin">admin</option>
         </select>
-      </div>
-
-      <div className="mt-4">
-        <PermissionPicker
-          tabs={tabs}
-          tabIds={tabIds}
-          fieldIds={fieldIds}
-          onTabsChange={setTabIds}
-          onFieldsChange={setFieldIds}
-        />
-      </div>
-
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
-
-      <div className="mt-4">
         <Button disabled={pending || !email} onClick={submit}>
           Send invite
         </Button>
       </div>
+
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
     </div>
   );
 }

@@ -6,8 +6,6 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { approveUser, removeUser, setRole } from "@/app/(app)/admin/actions";
 import { setNickname } from "@/app/(app)/people/actions";
-import { EditAccess } from "@/components/admin/edit-access";
-import type { TabOpt } from "@/components/admin/permission-picker";
 import { cn } from "@/lib/utils";
 
 type U = {
@@ -19,22 +17,16 @@ type U = {
   role: "admin" | "member";
   status: "pending" | "approved";
   joined: boolean;
-  tabIds: string[];
-  fieldIds: string[];
 };
 
 export function UsersTable({
   users,
   currentUserId,
-  tabs,
   isAdmin,
-  groupsByUser,
 }: {
   users: U[];
   currentUserId: string;
-  tabs: TabOpt[];
   isAdmin: boolean;
-  groupsByUser: Record<string, { id: string; name: string }[]>;
 }) {
   const [pending, start] = React.useTransition();
 
@@ -45,7 +37,6 @@ export function UsersTable({
           <tr className="border-b border-border bg-surface-2/60 text-left font-mono text-[11px] uppercase tracking-[0.15em] text-faint">
             <th className="px-4 py-3">User</th>
             <th className="px-4 py-3">Role</th>
-            <th className="px-4 py-3">Groups</th>
             <th className="px-4 py-3">Status</th>
             {isAdmin && <th className="px-4 py-3 text-right">Actions</th>}
           </tr>
@@ -72,7 +63,7 @@ export function UsersTable({
                         />
                       ) : (
                         <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-xs font-semibold uppercase">
-                          {(u.name ?? u.email ?? "?").slice(0, 1)}
+                          {(u.nickname ?? u.name ?? u.email ?? "?").slice(0, 1)}
                         </div>
                       )}
                       <div className="min-w-0">
@@ -132,29 +123,10 @@ export function UsersTable({
                   </td>
 
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(groupsByUser[u.id] ?? []).length === 0 ? (
-                        <span className="text-xs text-faint">—</span>
-                      ) : (
-                        (groupsByUser[u.id] ?? []).map((g) => (
-                          <span
-                            key={g.id}
-                            className="inline-flex items-center rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] text-muted"
-                          >
-                            {g.name}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-3">
                     <span
                       className={cn(
                         "inline-flex items-center gap-1.5 text-xs",
-                        u.status === "approved"
-                          ? "text-ink"
-                          : "text-warn",
+                        u.status === "approved" ? "text-ink" : "text-warn",
                       )}
                     >
                       <span
@@ -170,47 +142,38 @@ export function UsersTable({
                   </td>
 
                   {isAdmin && (
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      {u.role === "member" && (
-                        <EditAccess
-                          userId={u.id}
-                          userLabel={u.name ?? u.email ?? "this user"}
-                          tabs={tabs}
-                          initialTabIds={u.tabIds}
-                          initialFieldIds={u.fieldIds}
-                        />
-                      )}
-                      {u.status === "pending" && (
-                        <Button
-                          size="sm"
-                          disabled={pending}
-                          onClick={() =>
-                            start(() => approveUser(u.id).then(() => {}))
-                          }
-                        >
-                          Approve
-                        </Button>
-                      )}
-                      {!self && (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          disabled={pending}
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Remove ${u.email}? They lose all access immediately.`,
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {u.status === "pending" && (
+                          <Button
+                            size="sm"
+                            disabled={pending}
+                            onClick={() =>
+                              start(() => approveUser(u.id).then(() => {}))
+                            }
+                          >
+                            Approve
+                          </Button>
+                        )}
+                        {!self && (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={pending}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Remove ${u.email}? They lose all access immediately.`,
+                                )
                               )
-                            )
-                              start(() => removeUser(u.id).then(() => {}));
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  </td>
+                                start(() => removeUser(u.id).then(() => {}));
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </td>
                   )}
                 </motion.tr>
               );
@@ -234,7 +197,6 @@ function NicknameEditor({
   const [val, setVal] = React.useState(initial ?? "");
   const [pending, start] = React.useTransition();
 
-  // Reconcile with the server value after a save revalidates.
   const [prev, setPrev] = React.useState(initial ?? "");
   if ((initial ?? "") !== prev) {
     setPrev(initial ?? "");

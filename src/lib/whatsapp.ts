@@ -89,36 +89,24 @@ export async function resolvePerson(token: string) {
 }
 
 /**
- * Turn a parsed message into a task in the resolved tab, tagging resolved
- * members of that tab. Returns a result describing what happened.
+ * Turn a parsed message into a task in the resolved brood. Access is column-
+ * scoped now, so messages are no longer assigned to specific people.
  */
 export async function ingestParsedMessage(parsed: ParsedMessage) {
   if (!parsed.tabName) {
-    return { ok: false as const, error: "No #tab tag in message" };
+    return { ok: false as const, error: "No #brood tag in message" };
   }
   const tab = await resolveTab(parsed.tabName);
   if (!tab) {
-    return { ok: false as const, error: `Unknown tab #${parsed.tabName}` };
+    return { ok: false as const, error: `Unknown brood #${parsed.tabName}` };
   }
 
-  // Resolve people, but only keep those who are members of this tab.
-  const resolvedUserIds: string[] = [];
-  for (const token of parsed.personTokens) {
-    const user = await resolvePerson(token);
-    if (!user) continue;
-    const isMember = await prisma.tabMembership.count({
-      where: { tabId: tab.id, userId: user.id },
-    });
-    if (isMember) resolvedUserIds.push(user.id);
-  }
-
-  // Determine field keys for description / person.
+  // Determine the description field key.
   const fields = await prisma.fieldDef.findMany({ where: { tabId: tab.id } });
   const descKey =
     fields.find((f) => f.key === "description")?.key ??
     fields.find((f) => f.type === "text")?.key ??
     "description";
-  const personKey = fields.find((f) => f.type === "person")?.key;
 
   const last = await prisma.task.findFirst({
     where: { tabId: tab.id },
@@ -126,27 +114,14 @@ export async function ingestParsedMessage(parsed: ParsedMessage) {
     select: { position: true },
   });
 
-  const values: Record<string, unknown> = {
-    [descKey]: parsed.description,
-  };
-  if (personKey) values[personKey] = resolvedUserIds;
-
   const task = await prisma.task.create({
     data: {
       tabId: tab.id,
       position: (last?.position ?? 0) + 1,
       source: "whatsapp",
-      values: values as Prisma.InputJsonObject,
-      assignees: {
-        create: resolvedUserIds.map((userId) => ({ userId })),
-      },
+      values: { [descKey]: parsed.description } as Prisma.InputJsonObject,
     },
   });
 
-  return {
-    ok: true as const,
-    taskId: task.id,
-    tabId: tab.id,
-    assigned: resolvedUserIds.length,
-  };
+  return { ok: true as const, taskId: task.id, tabId: tab.id };
 }

@@ -2,38 +2,25 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, X, ChevronDown, Users, Columns3 } from "lucide-react";
+import { Plus, Trash2, X, ChevronDown, Columns3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   createTab,
   renameTab,
   deleteTab,
-  setVisibilityMode,
-  addMember,
-  removeMember,
   addField,
   deleteField,
 } from "@/app/(app)/admin/actions";
 
-type FieldType = "text" | "select" | "checkbox" | "person" | "date";
-type Person = { id: string; name: string; image?: string | null };
-type Field = { id: string; label: string; type: FieldType; options: string[] };
+type FieldType = "text" | "select" | "checkbox" | "date";
+type Field = { id: string; label: string; type: string; options: string[] };
 type Tab = {
   id: string;
   name: string;
-  visibilityMode: "ALL_ROWS" | "TAGGED_ONLY";
   fields: Field[];
-  members: Person[];
 };
 
-export function TabsManager({
-  tabs,
-  allUsers,
-}: {
-  tabs: Tab[];
-  allUsers: Person[];
-}) {
+export function TabsManager({ tabs }: { tabs: Tab[] }) {
   const [pending, start] = React.useTransition();
   const [newName, setNewName] = React.useState("");
   const [openId, setOpenId] = React.useState<string | null>(
@@ -77,7 +64,6 @@ export function TabsManager({
           <TabCard
             key={tab.id}
             tab={tab}
-            allUsers={allUsers}
             open={openId === tab.id}
             onToggle={() => setOpenId(openId === tab.id ? null : tab.id)}
             pending={pending}
@@ -91,14 +77,12 @@ export function TabsManager({
 
 function TabCard({
   tab,
-  allUsers,
   open,
   onToggle,
   pending,
   start,
 }: {
   tab: Tab;
-  allUsers: Person[];
   open: boolean;
   onToggle: () => void;
   pending: boolean;
@@ -110,10 +94,6 @@ function TabCard({
     setPrevName(tab.name);
     setName(tab.name);
   }
-
-  const nonMembers = allUsers.filter(
-    (u) => !tab.members.some((m) => m.id === u.id),
-  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
@@ -131,23 +111,12 @@ function TabCard({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() =>
-            name.trim() && name !== tab.name &&
+            name.trim() &&
+            name !== tab.name &&
             start(() => renameTab(tab.id, name).then(() => {}))
           }
           className="flex-1 rounded-md bg-transparent px-1 py-1 font-display text-lg font-bold tracking-tight text-ink outline-none focus:bg-surface-2"
         />
-
-        <VisibilityToggle
-          mode={tab.visibilityMode}
-          disabled={pending}
-          onChange={(m) =>
-            start(() => setVisibilityMode(tab.id, m).then(() => {}))
-          }
-        />
-
-        <span className="flex items-center gap-1 text-xs text-faint">
-          <Users className="h-3.5 w-3.5" /> {tab.members.length}
-        </span>
 
         <button
           onClick={() => {
@@ -170,48 +139,12 @@ function TabCard({
             transition={{ duration: 0.2 }}
             className="overflow-hidden border-t border-border-soft"
           >
-            <div className="grid gap-6 p-5 md:grid-cols-2">
+            <div className="p-5">
               <FieldsSection tab={tab} pending={pending} start={start} />
-              <MembersSection
-                tab={tab}
-                nonMembers={nonMembers}
-                pending={pending}
-                start={start}
-              />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function VisibilityToggle({
-  mode,
-  disabled,
-  onChange,
-}: {
-  mode: "ALL_ROWS" | "TAGGED_ONLY";
-  disabled: boolean;
-  onChange: (m: "ALL_ROWS" | "TAGGED_ONLY") => void;
-}) {
-  return (
-    <div className="flex rounded-lg border border-border bg-surface p-0.5 text-xs">
-      {(["TAGGED_ONLY", "ALL_ROWS"] as const).map((m) => (
-        <button
-          key={m}
-          disabled={disabled}
-          onClick={() => onChange(m)}
-          className={cn(
-            "rounded-md px-2.5 py-1 font-medium transition-colors disabled:opacity-50",
-            mode === m
-              ? "bg-elevated text-ink"
-              : "text-faint hover:text-muted",
-          )}
-        >
-          {m === "TAGGED_ONLY" ? "Tagged only" : "All rows"}
-        </button>
-      ))}
     </div>
   );
 }
@@ -248,7 +181,7 @@ function FieldsSection({
             <button
               onClick={() => start(() => deleteField(f.id).then(() => {}))}
               className="ml-auto text-faint transition-colors hover:text-danger"
-              aria-label="Delete field"
+              aria-label="Delete column"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -293,7 +226,6 @@ function FieldsSection({
             <option value="select">select</option>
             <option value="checkbox">checkbox</option>
             <option value="date">date</option>
-            <option value="person">person</option>
           </select>
         </div>
         {type === "select" && (
@@ -308,87 +240,6 @@ function FieldsSection({
           <Plus className="h-3.5 w-3.5" /> Add column
         </Button>
       </form>
-    </div>
-  );
-}
-
-function MembersSection({
-  tab,
-  nonMembers,
-  pending,
-  start,
-}: {
-  tab: Tab;
-  nonMembers: Person[];
-  pending: boolean;
-  start: React.TransitionStartFunction;
-}) {
-  const [pick, setPick] = React.useState("");
-
-  return (
-    <div>
-      <h3 className="mb-3 flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-faint">
-        <Users className="h-3.5 w-3.5" /> Members
-      </h3>
-
-      <div className="flex flex-wrap gap-1.5">
-        {tab.members.length === 0 && (
-          <span className="text-sm text-faint">No one added yet.</span>
-        )}
-        {tab.members.map((m) => (
-          <span
-            key={m.id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface py-1 pl-1 pr-2 text-sm"
-          >
-            {m.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={m.image} alt="" className="h-5 w-5 rounded-full" />
-            ) : (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-[10px] uppercase">
-                {m.name.slice(0, 1)}
-              </span>
-            )}
-            <span className="text-ink">{m.name}</span>
-            <button
-              onClick={() =>
-                start(() => removeMember(tab.id, m.id).then(() => {}))
-              }
-              className="text-faint transition-colors hover:text-danger"
-              aria-label="Remove member"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-3 flex gap-2">
-        <select
-          value={pick}
-          onChange={(e) => setPick(e.target.value)}
-          className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-accent/50"
-        >
-          <option value="">Add a member…</option>
-          {nonMembers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={pending || !pick}
-          onClick={() =>
-            pick &&
-            start(() =>
-              addMember(tab.id, pick).then(() => setPick("")),
-            )
-          }
-        >
-          Add
-        </Button>
-      </div>
     </div>
   );
 }

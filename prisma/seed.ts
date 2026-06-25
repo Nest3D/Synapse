@@ -9,25 +9,20 @@ const BASE_FIELDS = [
     type: "text" as const,
     order: 0,
   },
-  { key: "person", label: "Person", type: "person" as const, order: 1 },
-  { key: "category", label: "Category", type: "text" as const, order: 2 },
-  { key: "done", label: "Done", type: "checkbox" as const, order: 3 },
+  { key: "category", label: "Category", type: "text" as const, order: 1 },
+  { key: "done", label: "Done", type: "checkbox" as const, order: 2 },
 ];
 
-async function ensureTab(
-  name: string,
-  order: number,
-  visibilityMode: "ALL_ROWS" | "TAGGED_ONLY",
-) {
+async function ensureTab(name: string, order: number) {
   let tab = await prisma.tab.findFirst({ where: { name } });
   if (!tab) {
-    tab = await prisma.tab.create({ data: { name, order, visibilityMode } });
+    tab = await prisma.tab.create({ data: { name, order } });
     await prisma.fieldDef.createMany({
       data: BASE_FIELDS.map((f) => ({ ...f, tabId: tab!.id })),
     });
-    console.log(`+ created tab "${name}" with base fields`);
+    console.log(`+ created brood "${name}" with base columns`);
   } else {
-    console.log(`= tab "${name}" already exists`);
+    console.log(`= brood "${name}" already exists`);
   }
   return tab;
 }
@@ -48,8 +43,8 @@ async function main() {
     );
   }
 
-  await ensureTab("Marketing", 1, "TAGGED_ONLY");
-  await ensureTab("Roadmap", 2, "ALL_ROWS");
+  await ensureTab("Marketing", 1);
+  await ensureTab("Roadmap", 2);
 
   console.log("Seed complete.");
 }

@@ -54,12 +54,6 @@ export default async function ArchivePage() {
                 {t.description || <span className="text-faint">—</span>}
               </span>
 
-              {t.assignees.length > 0 && (
-                <span className="hidden shrink-0 truncate text-xs text-muted sm:block">
-                  {t.assignees.map((a) => a.name.split(" ")[0]).join(", ")}
-                </span>
-              )}
-
               <span className="shrink-0 rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-faint">
                 {t.tabName}
               </span>

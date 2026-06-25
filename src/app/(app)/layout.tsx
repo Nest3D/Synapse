@@ -18,7 +18,7 @@ export default async function AppLayout({
   if (user.status !== "approved") redirect("/pending");
 
   const admin = isAdmin(user);
-  const { groups, nickname } = await getNavForUser(user);
+  const { nickname } = await getNavForUser(user);
   const displayName = nickname ?? user.name ?? user.email;
 
   return (
@@ -31,12 +31,6 @@ export default async function AppLayout({
 
           <nav className="ml-2 flex flex-wrap items-center gap-1 text-sm">
             <NavLink href="/">All Tasks</NavLink>
-            <NavLink href="/my-tasks">My Tasks</NavLink>
-            {groups.map((g) => (
-              <NavLink key={g.id} href={`/group/${g.id}`}>
-                {g.name}
-              </NavLink>
-            ))}
             <NavLink href="/archive">Archive</NavLink>
             {admin && <NavLink href="/people">People</NavLink>}
             {admin && <NavLink href="/admin/tabs">Brood</NavLink>}

@@ -3,21 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getApprovedUser, canAccessTab, canSeeTask, isAdmin, assertFieldVisible } from "@/lib/access";
+import {
+  getApprovedUser,
+  canAccessTab,
+  canSeeTask,
+  isAdmin,
+  assertFieldVisible,
+} from "@/lib/access";
 
 async function requireUser() {
   const user = await getApprovedUser();
   if (!user) throw new Error("Unauthorized");
   return user;
-}
-
-/** Find the `person`-type field key for a tab, if any. */
-async function personFieldKey(tabId: string): Promise<string | null> {
-  const f = await prisma.fieldDef.findFirst({
-    where: { tabId, type: "person" },
-    select: { key: true },
-  });
-  return f?.key ?? null;
 }
 
 export async function addRow(tabId: string) {
@@ -65,67 +62,6 @@ export async function updateCell(
   revalidatePath(`/tab/${task.tabId}`);
 }
 
-/** Set the assignees (person field) for a task and keep TaskAssignee in sync. */
-export async function setAssignees(taskId: string, userIds: string[]) {
-  const user = await requireUser();
-  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
-
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-
-  // Only allow assigning users who are members of this tab.
-  const valid = await prisma.tabMembership.findMany({
-    where: { tabId: task.tabId, userId: { in: userIds } },
-    select: { userId: true },
-  });
-  const validIds = valid.map((v) => v.userId);
-
-  const key = await personFieldKey(task.tabId);
-  if (key) await assertFieldVisible(user, task.tabId, key);
-  const values = { ...(task.values as Record<string, unknown>) };
-  if (key) values[key] = validIds;
-
-  await prisma.$transaction([
-    prisma.taskAssignee.deleteMany({ where: { taskId } }),
-    ...validIds.map((userId) =>
-      prisma.taskAssignee.create({ data: { taskId, userId } }),
-    ),
-    prisma.task.update({
-      where: { id: taskId },
-      data: { values: values as Prisma.InputJsonObject },
-    }),
-  ]);
-  revalidatePath(`/tab/${task.tabId}`);
-}
-
-/** Set the live group tags for a task (parallel to person assignees). */
-export async function setTaskGroups(taskId: string, groupIds: string[]) {
-  const user = await requireUser();
-  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
-
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-
-  // The person field gates who may edit tagging on this task.
-  const key = await personFieldKey(task.tabId);
-  if (key) await assertFieldVisible(user, task.tabId, key);
-
-  const valid = await prisma.group.findMany({
-    where: { id: { in: groupIds } },
-    select: { id: true },
-  });
-  const validIds = valid.map((g) => g.id);
-
-  await prisma.$transaction([
-    prisma.taskGroupAssignee.deleteMany({ where: { taskId } }),
-    ...validIds.map((groupId) =>
-      prisma.taskGroupAssignee.create({ data: { taskId, groupId } }),
-    ),
-  ]);
-  revalidatePath(`/tab/${task.tabId}`);
-  revalidatePath("/my-tasks");
-  revalidatePath("/group/[groupId]", "page");
-}
-
-/** Admin: reorder is out of scope v1; expose simple position bump if needed. */
 export async function moveRow(taskId: string, direction: "up" | "down") {
   const user = await requireUser();
   if (!isAdmin(user) && !(await canSeeTask(user, taskId)))

@@ -6,10 +6,7 @@ import {
   getVisibleTasks,
   getVisibleFields,
   getTab,
-  getTaggableGroups,
-  isAdmin,
 } from "@/lib/access";
-import { prisma } from "@/lib/prisma";
 import { TabBar } from "@/components/tab-bar";
 import { TaskGrid } from "@/components/task-grid";
 
@@ -29,51 +26,18 @@ export default async function TabPage({
   ]);
   if (!access || !tab) notFound();
 
-  const [fields, tasks, members] = await Promise.all([
+  const [fields, tasks] = await Promise.all([
     getVisibleFields(user, tabId),
     getVisibleTasks(user, tabId),
-    prisma.tabMembership.findMany({
-      where: { tabId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            nickname: true,
-            email: true,
-            image: true,
-          },
-        },
-      },
-    }),
   ]);
 
-  // The person column (and its assignee data / member roster) is only sent to
-  // the client when the user may actually view the person field.
-  const personVisible = fields.some((f) => f.type === "person");
-
-  const memberOptions = personVisible
-    ? members.map((m) => ({
-        id: m.user.id,
-        name: m.user.nickname ?? m.user.name ?? m.user.email ?? "Unknown",
-        image: m.user.image,
-      }))
-    : [];
-
-  const groupOptions = personVisible
-    ? (await getTaggableGroups()).map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: g._count.members,
-      }))
-    : [];
+  // Legacy person columns (tagging removed) are not rendered.
+  const cols = fields.filter((f) => f.type !== "person");
 
   const rows = tasks.map((t) => ({
     id: t.id,
     source: t.source,
     values: t.values as Record<string, unknown>,
-    assignees: personVisible ? t.assignees.map((a) => a.userId) : [],
-    groups: personVisible ? t.groupTags.map((g) => g.groupId) : [],
   }));
 
   return (
@@ -89,10 +53,7 @@ export default async function TabPage({
             {tab.name}
           </h1>
           <p className="mt-1 font-mono text-xs uppercase tracking-[0.2em] text-faint">
-            {tab.visibilityMode === "TAGGED_ONLY"
-              ? "tagged rows only"
-              : "all rows visible"}{" "}
-            · {rows.length} {rows.length === 1 ? "task" : "tasks"}
+            {rows.length} {rows.length === 1 ? "task" : "tasks"}
           </p>
         </div>
       </div>
@@ -100,17 +61,14 @@ export default async function TabPage({
       <div className="mt-6">
         <TaskGrid
           tabId={tabId}
-          fields={fields.map((f) => ({
+          fields={cols.map((f) => ({
             key: f.key,
             label: f.label,
             type: f.type,
             options: (f.options as string[] | null) ?? [],
           }))}
           rows={rows}
-          members={memberOptions}
-          groups={groupOptions}
           canEdit
-          isAdmin={isAdmin(user)}
         />
       </div>
     </div>

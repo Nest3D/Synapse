@@ -1,5 +1,7 @@
 // Permissioned Task Manager — data model
-// See plan: per-user tab + row visibility, custom fields per tab, WhatsApp ingest.
+// Access is column-scoped: each FieldDef carries an access rule (ALL / INCLUDE /
+// EXCLUDE over approved users). A user can see a brood (Tab) if at least one of
+// its columns is visible to them; all rows in an accessible brood are visible.
 
 generator client {
   provider = "prisma-client-js"
@@ -20,11 +22,6 @@ enum UserStatus {
   approved
 }
 
-enum VisibilityMode {
-  ALL_ROWS
-  TAGGED_ONLY
-}
-
 enum FieldType {
   text
   select
@@ -36,6 +33,12 @@ enum FieldType {
 enum TaskSource {
   manual
   whatsapp
+}
+
+enum FieldAccessMode {
+  ALL // every approved user
+  INCLUDE // only the listed users
+  EXCLUDE // every approved user except the listed users
 }
 
 // ---- Auth.js (NextAuth) models + app fields ----
@@ -50,13 +53,9 @@ model User {
   status        UserStatus @default(pending)
   createdAt     DateTime   @default(now())
 
-  accounts         Account[]
-  sessions         Session[]
-  memberships      TabMembership[]
-  assignments      TaskAssignee[]
-  fieldPermissions FieldPermission[]
-  groupsCreated    Group[]           @relation("GroupCreator")
-  groupMemberships GroupMembership[]
+  accounts    Account[]
+  sessions    Session[]
+  fieldAccess FieldAccessUser[]
 }
 
 model Account {
@@ -96,38 +95,27 @@ model VerificationToken {
 
 // ---- Domain models ----
 model Tab {
-  id             String         @id @default(cuid())
-  name           String
-  order          Int            @default(0)
-  visibilityMode VisibilityMode @default(TAGGED_ONLY)
-  createdAt      DateTime       @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
 
-  memberships TabMembership[]
-  fields      FieldDef[]
-  tasks       Task[]
-}
-
-model TabMembership {
-  id     String @id @default(cuid())
-  userId String
-  tabId  String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tab    Tab    @relation(fields: [tabId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tabId])
-  @@index([tabId])
+  fields FieldDef[]
+  tasks  Task[]
 }
 
 model FieldDef {
-  id      String    @id @default(cuid())
-  tabId   String
-  key     String // stable key used inside Task.values JSON
-  label   String
-  type    FieldType
-  options Json? // for select: array of strings
-  order   Int       @default(0)
-  tab         Tab             @relation(fields: [tabId], references: [id], onDelete: Cascade)
-  permissions FieldPermission[]
+  id         String          @id @default(cuid())
+  tabId      String
+  key        String // stable key used inside Task.values JSON
+  label      String
+  type       FieldType
+  options    Json? // for select: array of strings
+  order      Int             @default(0)
+  accessMode FieldAccessMode @default(ALL)
+
+  tab    Tab               @relation(fields: [tabId], references: [id], onDelete: Cascade)
+  access FieldAccessUser[]
 
   @@unique([tabId, key])
   @@index([tabId])
@@ -142,73 +130,22 @@ model Task {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   tab       Tab        @relation(fields: [tabId], references: [id], onDelete: Cascade)
-  assignees TaskAssignee[]
-  groupTags TaskGroupAssignee[]
 
   @@index([tabId])
 }
 
-model TaskAssignee {
-  id     String @id @default(cuid())
-  taskId String
-  userId String
-  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([taskId, userId])
-  @@index([userId])
-  @@index([taskId])
-}
-
-model FieldPermission {
-  id      String   @id @default(cuid())
-  userId  String
+// The include/exclude user list for a column's access rule. Ignored when the
+// column's accessMode is ALL.
+model FieldAccessUser {
+  id      String @id @default(cuid())
   fieldId String
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
   field   FieldDef @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, fieldId])
+  @@unique([fieldId, userId])
   @@index([userId])
   @@index([fieldId])
-}
-
-// ---- Groups: taggable sets of members with live membership ----
-model Group {
-  id          String   @id @default(cuid())
-  name        String
-  createdById String
-  createdAt   DateTime @default(now())
-
-  createdBy User                @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  members   GroupMembership[]
-  taskTags  TaskGroupAssignee[]
-
-  @@index([createdById])
-}
-
-model GroupMembership {
-  id      String @id @default(cuid())
-  groupId String
-  userId  String
-  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([groupId, userId])
-  @@index([userId])
-  @@index([groupId])
-}
-
-// A live group tag on a task: whoever is in the group right now is "tagged".
-model TaskGroupAssignee {
-  id      String @id @default(cuid())
-  taskId  String
-  groupId String
-  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  @@unique([taskId, groupId])
-  @@index([groupId])
-  @@index([taskId])
 }
 
 model WhatsAppLog {

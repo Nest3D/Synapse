@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/access";
-import type { FieldType, VisibilityMode } from "@prisma/client";
+import type { FieldType, FieldAccessMode } from "@prisma/client";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -48,8 +48,6 @@ export async function setRole(userId: string, role: "admin" | "member") {
 export async function inviteUser(
   email: string,
   role: "admin" | "member",
-  tabIds: string[],
-  fieldIds: string[],
 ): Promise<{ error?: string }> {
   await requireAdmin();
   const clean = email.trim().toLowerCase();
@@ -59,41 +57,13 @@ export async function inviteUser(
   if (exists) return { error: "That email is already a user" };
 
   await prisma.user.create({
-    data: {
-      email: clean,
-      role,
-      status: "pending",
-      memberships: { create: tabIds.map((tabId) => ({ tabId })) },
-      fieldPermissions: { create: fieldIds.map((fieldId) => ({ fieldId })) },
-    },
+    data: { email: clean, role, status: "pending" },
   });
   revalidatePath("/people");
   return {};
 }
 
-/** Replace a user's tab memberships and field permissions wholesale. */
-export async function setUserPermissions(
-  userId: string,
-  tabIds: string[],
-  fieldIds: string[],
-) {
-  await requireAdmin();
-  await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  await prisma.$transaction([
-    prisma.tabMembership.deleteMany({ where: { userId } }),
-    prisma.fieldPermission.deleteMany({ where: { userId } }),
-    ...tabIds.map((tabId) =>
-      prisma.tabMembership.create({ data: { userId, tabId } }),
-    ),
-    ...fieldIds.map((fieldId) =>
-      prisma.fieldPermission.create({ data: { userId, fieldId } }),
-    ),
-  ]);
-  revalidatePath("/people");
-  revalidatePath("/tab/[tabId]", "page");
-}
-
-/* ---- Tabs ---- */
+/* ---- Broods (tabs) ---- */
 export async function createTab(name: string) {
   await requireAdmin();
   const clean = name.trim();
@@ -105,7 +75,7 @@ export async function createTab(name: string) {
   const tab = await prisma.tab.create({
     data: { name: clean, order: (last?.order ?? 0) + 1 },
   });
-  // Seed the base fields requested by the user.
+  // Seed the base columns. All columns default to ALL access.
   await prisma.fieldDef.createMany({
     data: [
       {
@@ -115,15 +85,14 @@ export async function createTab(name: string) {
         type: "text",
         order: 0,
       },
-      { tabId: tab.id, key: "person", label: "Person", type: "person", order: 1 },
       {
         tabId: tab.id,
         key: "category",
         label: "Category",
         type: "text",
-        order: 2,
+        order: 1,
       },
-      { tabId: tab.id, key: "done", label: "Done", type: "checkbox", order: 3 },
+      { tabId: tab.id, key: "done", label: "Done", type: "checkbox", order: 2 },
     ],
   });
   revalidatePath("/admin/tabs");
@@ -134,15 +103,6 @@ export async function renameTab(tabId: string, name: string) {
   await requireAdmin();
   await prisma.tab.update({ where: { id: tabId }, data: { name: name.trim() } });
   revalidatePath("/admin/tabs");
-}
-
-export async function setVisibilityMode(tabId: string, mode: VisibilityMode) {
-  await requireAdmin();
-  await prisma.tab.update({
-    where: { id: tabId },
-    data: { visibilityMode: mode },
-  });
-  revalidatePath("/admin/tabs");
   revalidatePath(`/tab/${tabId}`);
 }
 
@@ -152,28 +112,7 @@ export async function deleteTab(tabId: string) {
   revalidatePath("/admin/tabs");
 }
 
-/* ---- Memberships ---- */
-export async function addMember(tabId: string, userId: string) {
-  await requireAdmin();
-  await prisma.tabMembership.upsert({
-    where: { userId_tabId: { userId, tabId } },
-    create: { tabId, userId },
-    update: {},
-  });
-  revalidatePath("/admin/tabs");
-}
-
-export async function removeMember(tabId: string, userId: string) {
-  await requireAdmin();
-  await prisma.tabMembership.deleteMany({ where: { tabId, userId } });
-  // Also drop their assignments in this tab to keep things tidy.
-  await prisma.taskAssignee.deleteMany({
-    where: { userId, task: { tabId } },
-  });
-  revalidatePath("/admin/tabs");
-}
-
-/* ---- Fields ---- */
+/* ---- Columns ---- */
 export async function addField(
   tabId: string,
   label: string,
@@ -184,7 +123,6 @@ export async function addField(
   const clean = label.trim();
   if (!clean) throw new Error("Label required");
 
-  // Build a unique key.
   const base = slug(clean);
   let key = base;
   let n = 1;
@@ -215,5 +153,90 @@ export async function deleteField(fieldId: string) {
   await requireAdmin();
   const f = await prisma.fieldDef.delete({ where: { id: fieldId } });
   revalidatePath("/admin/tabs");
+  revalidatePath("/people");
   revalidatePath(`/tab/${f.tabId}`);
+}
+
+/* ---- Column access (configured on the People page) ---- */
+
+/** Refresh surfaces affected by a permission change. */
+function revalidateAccess(tabId?: string) {
+  revalidatePath("/people");
+  revalidatePath("/", "layout"); // brood may appear/disappear from nav
+  revalidatePath("/archive");
+  if (tabId) revalidatePath(`/tab/${tabId}`);
+  else revalidatePath("/tab/[tabId]", "page");
+}
+
+/** Set one column's access rule. ALL clears the user list. */
+export async function setFieldAccess(
+  fieldId: string,
+  mode: FieldAccessMode,
+  userIds: string[],
+) {
+  await requireAdmin();
+  const field = await prisma.fieldDef.findUniqueOrThrow({
+    where: { id: fieldId },
+    select: { tabId: true },
+  });
+
+  const valid =
+    mode === "ALL"
+      ? []
+      : (
+          await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true },
+          })
+        ).map((u) => u.id);
+
+  await prisma.$transaction([
+    prisma.fieldDef.update({
+      where: { id: fieldId },
+      data: { accessMode: mode },
+    }),
+    prisma.fieldAccessUser.deleteMany({ where: { fieldId } }),
+    ...valid.map((userId) =>
+      prisma.fieldAccessUser.create({ data: { fieldId, userId } }),
+    ),
+  ]);
+  revalidateAccess(field.tabId);
+}
+
+/** Apply one access rule to every column of a brood (the "whole brood" shortcut). */
+export async function setBroodAccess(
+  tabId: string,
+  mode: FieldAccessMode,
+  userIds: string[],
+) {
+  await requireAdmin();
+  const fields = await prisma.fieldDef.findMany({
+    where: { tabId },
+    select: { id: true },
+  });
+  const valid =
+    mode === "ALL"
+      ? []
+      : (
+          await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true },
+          })
+        ).map((u) => u.id);
+
+  await prisma.$transaction([
+    prisma.fieldDef.updateMany({
+      where: { tabId },
+      data: { accessMode: mode },
+    }),
+    prisma.fieldAccessUser.deleteMany({
+      where: { fieldId: { in: fields.map((f) => f.id) } },
+    }),
+    ...fields.flatMap((f) =>
+      valid.map((userId) =>
+        prisma.fieldAccessUser.create({ data: { fieldId: f.id, userId } }),
+      ),
+    ),
+  ]);
+  revalidateAccess(tabId);
 }
