@@ -2,16 +2,17 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pencil } from "lucide-react";
+import { Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { approveUser, removeUser, setRole } from "@/app/(app)/admin/actions";
-import { setNickname } from "@/app/(app)/people/actions";
+import { setNickname, setPhone } from "@/app/(app)/people/actions";
 import { cn } from "@/lib/utils";
 
 type U = {
   id: string;
   name: string | null;
   nickname: string | null;
+  phone: string | null;
   email: string | null;
   image: string | null;
   role: "admin" | "member";
@@ -79,9 +80,17 @@ export function UsersTable({
                         <div className="truncate font-mono text-xs text-faint">
                           {u.email}
                         </div>
-                        {(isAdmin || self) && (
-                          <NicknameEditor userId={u.id} initial={u.nickname} />
-                        )}
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          {(isAdmin || self) && (
+                            <NicknameEditor
+                              userId={u.id}
+                              initial={u.nickname}
+                            />
+                          )}
+                          {isAdmin && (
+                            <PhoneEditor userId={u.id} initial={u.phone} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -235,6 +244,60 @@ function NicknameEditor({
       }}
       placeholder="nickname"
       className="mt-1 w-32 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+    />
+  );
+}
+
+/** Admin-only inline WhatsApp phone editor. */
+function PhoneEditor({
+  userId,
+  initial,
+}: {
+  userId: string;
+  initial: string | null;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [val, setVal] = React.useState(initial ?? "");
+  const [pending, start] = React.useTransition();
+
+  const [prev, setPrev] = React.useState(initial ?? "");
+  if ((initial ?? "") !== prev) {
+    setPrev(initial ?? "");
+    setVal(initial ?? "");
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] text-faint transition-colors hover:text-ink"
+      >
+        <Phone className="h-3 w-3" />
+        {initial ? initial : "add phone"}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      value={val}
+      disabled={pending}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setVal(initial ?? "");
+          setEditing(false);
+        }
+      }}
+      onBlur={() => {
+        setEditing(false);
+        if (val.trim() !== (initial ?? ""))
+          start(() => setPhone(userId, val).then(() => {}));
+      }}
+      placeholder="WhatsApp number"
+      className="mt-1 w-36 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
     />
   );
 }

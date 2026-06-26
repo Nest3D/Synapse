@@ -13,7 +13,7 @@ export default async function BroodsAdminPage() {
   if (!me) redirect("/login");
   if (!isAdminUser(me)) redirect("/");
 
-  const [tabs, users, accessConfig] = await Promise.all([
+  const [tabs, users, accessConfig, aliases, logs] = await Promise.all([
     prisma.tab.findMany({
       where: { ownerId: null },
       orderBy: { order: "asc" },
@@ -25,6 +25,7 @@ export default async function BroodsAdminPage() {
         id: true,
         name: true,
         nickname: true,
+        phone: true,
         email: true,
         image: true,
         role: true,
@@ -33,6 +34,14 @@ export default async function BroodsAdminPage() {
       },
     }),
     getBroodAccessConfig(),
+    prisma.whatsAppAlias.findMany({
+      orderBy: { keyword: "asc" },
+      include: {
+        brood: { select: { name: true } },
+        user: { select: { name: true, nickname: true, email: true } },
+      },
+    }),
+    prisma.whatsAppLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
   ]);
 
   const broods = tabs.map((t) => ({
@@ -50,12 +59,37 @@ export default async function BroodsAdminPage() {
     id: u.id,
     name: u.name,
     nickname: u.nickname,
+    phone: u.phone,
     email: u.email,
     image: u.image,
     role: u.role,
     status: u.status,
     joined: u._count.accounts > 0,
   }));
+
+  const waAliases = aliases.map((a) => ({
+    id: a.id,
+    keyword: a.keyword,
+    kind: (a.broodId ? "brood" : "member") as "brood" | "member",
+    target: a.brood
+      ? a.brood.name
+      : a.user
+        ? (a.user.nickname ?? a.user.name ?? a.user.email ?? "Unknown")
+        : "—",
+  }));
+
+  const waLogs = logs.map((l) => {
+    const raw = (l.rawPayload ?? {}) as { text?: string };
+    const parsed = (l.parsed ?? {}) as { placement?: string };
+    return {
+      id: l.id,
+      text: raw.text ?? "",
+      status: l.status,
+      error: l.error,
+      placement: parsed.placement ?? null,
+      at: l.createdAt,
+    };
+  });
 
   const accessUsers: UserOpt[] = users
     .filter((u) => u.status === "approved")
@@ -96,6 +130,8 @@ export default async function BroodsAdminPage() {
         currentUserId={me.id}
         accessBroods={accessBroods}
         accessUsers={accessUsers}
+        waAliases={waAliases}
+        waLogs={waLogs}
       />
     </div>
   );

@@ -156,6 +156,37 @@ export async function setBroodPrivacy(tabId: string, makePrivate: boolean) {
   revalidatePath(`/tab/${tabId}`);
 }
 
+/* ---- WhatsApp aliases ---- */
+export async function addWhatsAppAlias(
+  keyword: string,
+  target: { broodId?: string; userId?: string },
+): Promise<{ error?: string }> {
+  await requireAdmin();
+  const key = keyword.trim().toLowerCase();
+  if (!key) return { error: "Keyword required" };
+  if (!target.broodId && !target.userId)
+    return { error: "Pick a brood or a member" };
+  const exists = await prisma.whatsAppAlias.findUnique({
+    where: { keyword: key },
+  });
+  if (exists) return { error: "That keyword is already used" };
+  await prisma.whatsAppAlias.create({
+    data: {
+      keyword: key,
+      broodId: target.broodId ?? null,
+      userId: target.userId ?? null,
+    },
+  });
+  revalidatePath("/admin/broods");
+  return {};
+}
+
+export async function deleteWhatsAppAlias(id: string) {
+  await requireAdmin();
+  await prisma.whatsAppAlias.delete({ where: { id } });
+  revalidatePath("/admin/broods");
+}
+
 /* ---- Columns ---- */
 export async function addField(
   tabId: string,

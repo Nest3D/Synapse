@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   verifySignature,
-  extractTextMessages,
+  extractMessages,
   parseMessage,
   ingestParsedMessage,
 } from "@/lib/whatsapp";
@@ -38,16 +38,19 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Bad JSON", { status: 400 });
   }
 
-  const texts = extractTextMessages(payload);
+  const messages = extractMessages(payload);
 
-  for (const text of texts) {
+  for (const { from, text } of messages) {
     const parsed = parseMessage(text);
     try {
-      const result = await ingestParsedMessage(parsed);
+      const result = await ingestParsedMessage(parsed, from);
       await prisma.whatsAppLog.create({
         data: {
-          rawPayload: { text },
-          parsed: { ...parsed },
+          rawPayload: { from, text },
+          parsed: {
+            ...parsed,
+            ...(result.ok ? { placement: result.placement } : {}),
+          },
           status: result.ok ? "ok" : "error",
           error: result.ok ? null : result.error,
         },
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       await prisma.whatsAppLog.create({
         data: {
-          rawPayload: { text },
+          rawPayload: { from, text },
           parsed: { ...parsed },
           status: "error",
           error: err instanceof Error ? err.message : "Unknown error",
@@ -65,5 +68,5 @@ export async function POST(req: NextRequest) {
   }
 
   // Always 200 so Meta doesn't retry indefinitely.
-  return NextResponse.json({ received: texts.length });
+  return NextResponse.json({ received: messages.length });
 }

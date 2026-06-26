@@ -231,6 +231,19 @@ In the Meta app's WhatsApp config, set the webhook callback to
 `WHATSAPP_APP_SECRET` to validate signatures. Because the app is already public
 HTTPS, no tunnel is needed.
 
-Message format: `#marketing @john Build the landing page`
-→ new row in **Marketing**, description "Build the landing page", tagging John
-(only if John is an approved member of that tab).
+**Message format — first word routes the task.** The first word is a
+destination *alias* (set up under **Broods → WhatsApp** in the app): a brood
+nickname drops the task into that brood; a member shortcut puts it on that
+member's board (and notifies them). The rest of the message is the task.
+
+- `mkt fix the landing page` → new task "fix the landing page" in **Marketing**
+- `sara call the client` → task on **Sara's** board, she's notified
+- extra `@mentions` after the first word tag more people:
+  `mkt fix logo @jon`
+
+The sender is matched to a member by the **phone number** an admin stores on
+**Broods → People**; that becomes the task's creator. If the first word matches
+nothing, the task lands on the sender's own board. Aliases fall back to brood
+names and member names/nicknames when no explicit alias is defined. The
+integration is **ingest-only** (no replies); see **Broods → WhatsApp → Recent
+activity** for what came in.

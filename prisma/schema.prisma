@@ -52,6 +52,7 @@ model User {
   id            String     @id @default(cuid())
   name          String?
   nickname      String?
+  phone         String?    @unique // WhatsApp number (digits only), admin-entered
   email         String?    @unique
   emailVerified DateTime?
   image         String?
@@ -64,8 +65,9 @@ model User {
   fieldAccess   FieldAccessUser[]
   assignments   TaskAssignee[]
   createdTasks  Task[]            @relation("TaskCreator")
-  notifications Notification[]
-  ownedBroods   Tab[]             @relation("BroodOwner")
+  notifications  Notification[]
+  ownedBroods    Tab[]             @relation("BroodOwner")
+  whatsappAliases WhatsAppAlias[]
 }
 
 model Account {
@@ -115,8 +117,25 @@ model Tab {
   owner  User?      @relation("BroodOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   fields FieldDef[]
   tasks  Task[]
+  whatsappAliases WhatsAppAlias[]
 
   @@index([ownerId])
+}
+
+// Admin-defined shortcut: a keyword that maps to a brood or a member, used to
+// route inbound WhatsApp tasks. Exactly one of broodId / userId is set.
+model WhatsAppAlias {
+  id        String   @id @default(cuid())
+  keyword   String   @unique // normalized lowercase
+  broodId   String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  brood Tab?  @relation(fields: [broodId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([broodId])
+  @@index([userId])
 }
 
 model FieldDef {

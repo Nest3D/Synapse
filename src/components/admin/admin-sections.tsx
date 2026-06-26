@@ -10,6 +10,11 @@ import {
   type Brood,
   type UserOpt,
 } from "@/components/admin/brood-access-panel";
+import {
+  WhatsAppAliases,
+  type AliasRow,
+  type LogRow,
+} from "@/components/admin/whatsapp-aliases";
 
 type ManageBrood = {
   id: string;
@@ -21,6 +26,7 @@ type UserRow = {
   id: string;
   name: string | null;
   nickname: string | null;
+  phone: string | null;
   email: string | null;
   image: string | null;
   role: "admin" | "member";
@@ -32,6 +38,7 @@ const SECTIONS = [
   { key: "broods", label: "Broods" },
   { key: "people", label: "People" },
   { key: "access", label: "Access" },
+  { key: "whatsapp", label: "WhatsApp" },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -42,12 +49,16 @@ export function AdminSections({
   currentUserId,
   accessBroods,
   accessUsers,
+  waAliases,
+  waLogs,
 }: {
   broods: ManageBrood[];
   users: UserRow[];
   currentUserId: string;
   accessBroods: Brood[];
   accessUsers: UserOpt[];
+  waAliases: AliasRow[];
+  waLogs: LogRow[];
 }) {
   const [section, setSection] = React.useState<SectionKey>("broods");
 
@@ -81,6 +92,15 @@ export function AdminSections({
 
       {section === "access" && (
         <BroodAccessPanel broods={accessBroods} users={accessUsers} />
+      )}
+
+      {section === "whatsapp" && (
+        <WhatsAppAliases
+          aliases={waAliases}
+          broods={broods.map((b) => ({ id: b.id, name: b.name }))}
+          members={accessUsers}
+          logs={waLogs}
+        />
       )}
     </div>
   );
