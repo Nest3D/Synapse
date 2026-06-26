@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Search, Layers, Check, Lock } from "lucide-react";
+import { Search, Layers, Check, Lock, ArchiveRestore } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateCell } from "@/app/(app)/actions";
+import { unarchiveTab } from "@/app/(app)/admin/actions";
 
 export type LogRow = {
   id: string;
@@ -32,10 +33,12 @@ export function LogList({
   rows,
   emptyLabel,
   canUndone = false,
+  canRestoreBrood = false,
 }: {
   rows: LogRow[];
   emptyLabel: string;
   canUndone?: boolean;
+  canRestoreBrood?: boolean;
 }) {
   const [q, setQ] = React.useState("");
 
@@ -81,7 +84,12 @@ export function LogList({
             </h3>
             <div className="divide-y divide-border-soft overflow-hidden rounded-xl border border-border bg-surface card-float">
               {g.rows.map((r) => (
-                <Row key={r.id} r={r} canUndone={canUndone} />
+                <Row
+                  key={r.id}
+                  r={r}
+                  canUndone={canUndone}
+                  canRestoreBrood={canRestoreBrood}
+                />
               ))}
             </div>
           </div>
@@ -91,11 +99,19 @@ export function LogList({
   );
 }
 
-function Row({ r, canUndone }: { r: LogRow; canUndone: boolean }) {
+function Row({
+  r,
+  canUndone,
+  canRestoreBrood,
+}: {
+  r: LogRow;
+  canUndone: boolean;
+  canRestoreBrood: boolean;
+}) {
   const [pending, start] = React.useTransition();
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3 text-sm">
+    <div className="group flex items-center gap-4 px-4 py-3 text-sm">
       {r.kind === "task" ? (
         <button
           disabled={!canUndone || pending}
@@ -137,6 +153,17 @@ function Row({ r, canUndone }: { r: LogRow; canUndone: boolean }) {
       <span className="hidden shrink-0 font-mono text-[11px] text-faint md:block">
         {time(new Date(r.at))}
       </span>
+
+      {r.kind === "brood" && canRestoreBrood && (
+        <button
+          onClick={() => start(() => unarchiveTab(r.id).then(() => {}))}
+          disabled={pending}
+          title="Restore brood"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-faint opacity-0 transition-all hover:bg-surface-2 hover:text-ink group-hover:opacity-100 disabled:opacity-50"
+        >
+          <ArchiveRestore className="h-3.5 w-3.5" /> Restore
+        </button>
+      )}
     </div>
   );
 }

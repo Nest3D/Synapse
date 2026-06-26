@@ -34,7 +34,7 @@ export default async function ArchivePage() {
         </p>
       </header>
 
-      <LogList rows={rows} emptyLabel="No deleted broods." />
+      <LogList rows={rows} canRestoreBrood emptyLabel="No deleted broods." />
     </div>
   );
 }

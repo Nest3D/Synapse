@@ -156,6 +156,26 @@ export async function setBroodPrivacy(tabId: string, makePrivate: boolean) {
   revalidatePath(`/tab/${tabId}`);
 }
 
+/** Restore an archived brood (admins: shared; members: their own personal). */
+export async function unarchiveTab(tabId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.status !== "approved") throw new Error("Unauthorized");
+  const tab = await prisma.tab.findUniqueOrThrow({
+    where: { id: tabId },
+    select: { ownerId: true },
+  });
+  const allowed =
+    (isAdmin(user) && tab.ownerId === null) || tab.ownerId === user.id;
+  if (!allowed) throw new Error("Forbidden");
+  await prisma.tab.update({
+    where: { id: tabId },
+    data: { archivedAt: null },
+  });
+  revalidatePath("/archive");
+  revalidatePath("/admin/broods");
+  revalidatePath("/", "layout");
+}
+
 /* ---- WhatsApp aliases ---- */
 export async function addWhatsAppAlias(
   keyword: string,
