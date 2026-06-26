@@ -23,7 +23,7 @@ export function TabBar({
             {active && (
               <motion.span
                 layoutId="tab-pill"
-                className="absolute inset-0 rounded-lg border border-border bg-elevated shadow-[0_1px_2px_rgba(25,23,18,0.06),0_6px_16px_-10px_rgba(25,23,18,0.25)]"
+                className="absolute inset-0 rounded-lg border border-[#5fe04d] bg-[#75FA61] shadow-[0_1px_2px_rgba(25,23,18,0.06),0_6px_16px_-10px_rgba(58,180,45,0.45)]"
                 transition={{ type: "spring", stiffness: 500, damping: 38 }}
               />
             )}
