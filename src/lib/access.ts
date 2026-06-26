@@ -212,6 +212,59 @@ export async function getArchivedTasks(
   return out;
 }
 
+/* ---------------- My Tasks (aggregate across accessible broods) ---------------- */
+
+export type GridSection = {
+  tabId: string;
+  tabName: string;
+  fields: { key: string; label: string; type: string; options: string[] }[];
+  rows: {
+    id: string;
+    source: "manual" | "whatsapp";
+    values: Record<string, unknown>;
+  }[];
+};
+
+/**
+ * Every task the user can see, across every brood they can access, grouped by
+ * brood. Access to a brood == being tagged to its tasks, so this is the user's
+ * personal cross-brood task list. Only broods with visible tasks are included.
+ */
+export async function getMyTaskSections(
+  user: SessionUser,
+): Promise<GridSection[]> {
+  const tabs = await getVisibleTabs(user);
+  const sections: GridSection[] = [];
+
+  for (const tab of tabs) {
+    const fields = (await getVisibleFields(user, tab.id)).filter(
+      (f) => f.type !== "person",
+    );
+    if (fields.length === 0) continue;
+
+    const tasks = await getVisibleTasks(user, tab.id);
+    if (tasks.length === 0) continue;
+
+    sections.push({
+      tabId: tab.id,
+      tabName: tab.name,
+      fields: fields.map((f) => ({
+        key: f.key,
+        label: f.label,
+        type: f.type as string,
+        options: (f.options as string[] | null) ?? [],
+      })),
+      rows: tasks.map((t) => ({
+        id: t.id,
+        source: t.source,
+        values: t.values as Record<string, unknown>,
+      })),
+    });
+  }
+
+  return sections;
+}
+
 /* ---------------- Admin: permission configuration ---------------- */
 
 export type BroodAccess = {
