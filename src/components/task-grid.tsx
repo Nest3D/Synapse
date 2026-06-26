@@ -158,9 +158,9 @@ export function TaskGrid({
 
                   {showActions && (
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                         {doneField && (
-                          <CheckCell
+                          <DoneToggle
                             checked={Boolean(row.values[doneField.key])}
                             disabled={!canEdit}
                             onToggle={(v) =>
@@ -174,27 +174,24 @@ export function TaskGrid({
                           />
                         )}
                         {canEdit && (
-                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                            <Select
-                              value=""
-                              variant="cell"
-                              align="right"
-                              ariaLabel="Handoff task"
-                              iconTrigger={<Send className="h-3.5 w-3.5" />}
-                              hoverLabel="Handoff"
-                              options={moveOptions}
-                              onChange={(v) => doMove(row.id, v)}
-                            />
-                          </div>
+                          <Select
+                            value=""
+                            variant="cell"
+                            align="right"
+                            ariaLabel="Handoff task"
+                            iconTrigger={<Send className="h-3.5 w-3.5" />}
+                            hoverLabel="Handoff"
+                            options={moveOptions}
+                            onChange={(v) => doMove(row.id, v)}
+                          />
                         )}
                         {canEdit && (
-                          <button
+                          <RowAction
+                            icon={<Trash2 className="h-3.5 w-3.5" />}
+                            label="Delete"
+                            tone="danger"
                             onClick={() => doDelete(row.id)}
-                            className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
-                            aria-label="Delete row"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          />
                         )}
                       </div>
                     </td>
@@ -336,6 +333,88 @@ function CheckCell({
     >
       <Check className="h-3.5 w-3.5" strokeWidth={3} />
     </button>
+  );
+}
+
+/** Icon button that expands to show its label on hover (matches Handoff). */
+function RowAction({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone = "default",
+  active,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: "default" | "danger";
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className={cn(
+        "group/ra flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium outline-none transition-colors disabled:opacity-60",
+        tone === "danger"
+          ? "text-faint hover:bg-danger/10 hover:text-danger"
+          : active
+            ? "text-accent hover:bg-surface-2"
+            : "text-faint hover:bg-surface-2 hover:text-ink",
+      )}
+    >
+      {icon}
+      <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all duration-200 group-hover/ra:max-w-[5rem]">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+/** The "done" control: a checkbox that reveals a "Done" label on hover. */
+function DoneToggle({
+  checked,
+  disabled,
+  onToggle,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  const [local, setLocal] = React.useState(checked);
+  const [prev, setPrev] = React.useState(checked);
+  if (prev !== checked) {
+    setPrev(checked);
+    setLocal(checked);
+  }
+  const box = (
+    <span
+      className={cn(
+        "flex h-4 w-4 items-center justify-center rounded-[5px] border transition-all",
+        local
+          ? "border-accent bg-accent text-accent-ink"
+          : "border-border bg-surface-2 text-transparent",
+      )}
+    >
+      <Check className="h-3 w-3" strokeWidth={3} />
+    </span>
+  );
+  return (
+    <RowAction
+      icon={box}
+      label="Done"
+      active={local}
+      disabled={disabled}
+      onClick={() => {
+        const next = !local;
+        setLocal(next);
+        onToggle(next);
+      }}
+    />
   );
 }
 
