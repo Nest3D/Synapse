@@ -23,6 +23,8 @@ export function Select({
   ariaLabel,
   align = "left",
   className,
+  iconTrigger,
+  hoverLabel,
 }: {
   value: string;
   options: SelectOption[];
@@ -33,6 +35,9 @@ export function Select({
   ariaLabel?: string;
   align?: "left" | "right";
   className?: string;
+  /** Render an icon-only trigger that reveals `hoverLabel` on hover. */
+  iconTrigger?: React.ReactNode;
+  hoverLabel?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [activeIdx, setActiveIdx] = React.useState(0);
@@ -124,32 +129,53 @@ export function Select({
 
   return (
     <div className={cn("relative", className)}>
-      <button
-        ref={btnRef}
-        type="button"
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => (open ? setOpen(false) : openMenu())}
-        onKeyDown={onKeyDown}
-        className={cn(
-          "flex w-full items-center gap-2 outline-none transition-colors disabled:opacity-60",
-          variant === "field"
-            ? "rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-sm text-ink hover:border-faint focus-visible:border-accent"
-            : "rounded-md bg-transparent px-2 py-1.5 text-sm text-ink hover:bg-surface-2 focus-visible:bg-surface-2",
-        )}
-      >
-        <span className={cn("truncate", !selected && "text-faint")}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <ChevronDown
-          className={cn(
-            "ml-auto h-3.5 w-3.5 shrink-0 text-faint transition-transform duration-150",
-            open && "rotate-180",
+      {iconTrigger ? (
+        <button
+          ref={btnRef}
+          type="button"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => (open ? setOpen(false) : openMenu())}
+          onKeyDown={onKeyDown}
+          className="group/ho flex items-center gap-1 rounded-md px-1.5 py-1.5 text-faint outline-none transition-colors hover:bg-surface-2 hover:text-ink focus-visible:bg-surface-2 disabled:opacity-60"
+        >
+          {iconTrigger}
+          {hoverLabel && (
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-xs font-medium transition-all duration-200 group-hover/ho:max-w-[5rem]">
+              {hoverLabel}
+            </span>
           )}
-        />
-      </button>
+        </button>
+      ) : (
+        <button
+          ref={btnRef}
+          type="button"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => (open ? setOpen(false) : openMenu())}
+          onKeyDown={onKeyDown}
+          className={cn(
+            "flex w-full items-center gap-2 outline-none transition-colors disabled:opacity-60",
+            variant === "field"
+              ? "rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-sm text-ink hover:border-faint focus-visible:border-accent"
+              : "rounded-md bg-transparent px-2 py-1.5 text-sm text-ink hover:bg-surface-2 focus-visible:bg-surface-2",
+          )}
+        >
+          <span className={cn("truncate", !selected && "text-faint")}>
+            {selected ? selected.label : placeholder}
+          </span>
+          <ChevronDown
+            className={cn(
+              "ml-auto h-3.5 w-3.5 shrink-0 text-faint transition-transform duration-150",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      )}
 
       {typeof document !== "undefined" &&
         createPortal(

@@ -10,6 +10,8 @@ import { signOut } from "@/auth";
 import { Brand } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
 import { NotificationBell } from "@/components/notification-bell";
+import { UndoProvider } from "@/components/undo-context";
+import { UndoButton } from "@/components/undo-button";
 
 // Every app route depends on the signed-in user + DB; never prerender.
 export const dynamic = "force-dynamic";
@@ -31,6 +33,7 @@ export default async function AppLayout({
   const displayName = nickname ?? user.name ?? user.email;
 
   return (
+    <UndoProvider>
     <div className="flex min-h-screen flex-col">
       <header className="glass sticky top-0 z-30 border-b border-border-soft">
         <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-6 px-6">
@@ -47,6 +50,7 @@ export default async function AppLayout({
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            <UndoButton />
             <NotificationBell
               items={notif.items.map((n) => ({
                 id: n.id,
@@ -99,5 +103,6 @@ export default async function AppLayout({
         {children}
       </main>
     </div>
+    </UndoProvider>
   );
 }

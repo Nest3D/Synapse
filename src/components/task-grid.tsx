@@ -2,10 +2,16 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, MessageCircle, Check } from "lucide-react";
+import { Trash2, MessageCircle, Check, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { deleteRow, updateCell, moveTask } from "@/app/(app)/actions";
+import { useUndo } from "@/components/undo-context";
+import {
+  deleteRow,
+  updateCell,
+  moveTask,
+  restoreTask,
+} from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
 
@@ -37,6 +43,7 @@ export function TaskGrid({
   broods?: BroodOpt[];
 }) {
   const [, startTransition] = React.useTransition();
+  const { push } = useUndo();
   const showActions = canEdit;
 
   const moveOptions = [
@@ -53,8 +60,31 @@ export function TaskGrid({
         : v === "private"
           ? ({ kind: "private" } as const)
           : ({ kind: "brood", tabId: v.slice("brood:".length) } as const);
-    startTransition(() => moveTask(taskId, target).then(() => {}));
+    startTransition(async () => {
+      const prev = await moveTask(taskId, target);
+      if (!prev) return;
+      const back =
+        prev.prevScope === "BROOD" && prev.prevTabId
+          ? ({ kind: "brood", tabId: prev.prevTabId } as const)
+          : prev.prevScope === "EVERYONE"
+            ? ({ kind: "everyone" } as const)
+            : ({ kind: "private" } as const);
+      push({ label: "move", run: () => moveTask(taskId, back) });
+    });
   };
+
+  const doEdit = (taskId: string, key: string, value: unknown, prev: unknown) =>
+    startTransition(() =>
+      updateCell(taskId, key, value).then(() =>
+        push({ label: "edit", run: () => updateCell(taskId, key, prev) }),
+      ),
+    );
+
+  const doDelete = (taskId: string) =>
+    startTransition(async () => {
+      const snap = await deleteRow(taskId);
+      push({ label: "delete", run: () => restoreTask(snap) });
+    });
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
@@ -106,9 +136,7 @@ export function TaskGrid({
                         field={f}
                         disabled={!canEdit}
                         onSave={(value) =>
-                          startTransition(() =>
-                            updateCell(row.id, f.key, value).then(() => {}),
-                          )
+                          doEdit(row.id, f.key, value, row.values[f.key])
                         }
                       />
                     </td>
@@ -117,25 +145,20 @@ export function TaskGrid({
                   {showActions && (
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1">
-                        {broods.length >= 0 && (
-                          <div className="w-28 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Select
-                              value=""
-                              placeholder="Move…"
-                              variant="cell"
-                              align="right"
-                              ariaLabel="Move task"
-                              options={moveOptions}
-                              onChange={(v) => doMove(row.id, v)}
-                            />
-                          </div>
-                        )}
+                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                          <Select
+                            value=""
+                            variant="cell"
+                            align="right"
+                            ariaLabel="Handoff task"
+                            iconTrigger={<Send className="h-3.5 w-3.5" />}
+                            hoverLabel="Handoff"
+                            options={moveOptions}
+                            onChange={(v) => doMove(row.id, v)}
+                          />
+                        </div>
                         <button
-                          onClick={() =>
-                            startTransition(() =>
-                              deleteRow(row.id).then(() => {}),
-                            )
-                          }
+                          onClick={() => doDelete(row.id)}
                           className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
                           aria-label="Delete row"
                         >

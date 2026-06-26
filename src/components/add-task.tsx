@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { createTask } from "@/app/(app)/actions";
+import { useUndo } from "@/components/undo-context";
+import { createTask, deleteRow } from "@/app/(app)/actions";
 
 export type TagUser = { id: string; label: string };
 
@@ -27,6 +28,7 @@ export function AddTask({
   const [text, setText] = React.useState("");
   const [tagged, setTagged] = React.useState<string[]>([]);
   const [pending, start] = React.useTransition();
+  const { push } = useUndo();
 
   const close = () => {
     setOpen(false);
@@ -37,13 +39,15 @@ export function AddTask({
   const submit = () => {
     if (!text.trim()) return;
     start(async () => {
-      await createTask({
+      const res = await createTask({
         text,
         scope,
         tabId: tabId ?? null,
         taggedUserIds: tagged,
       });
       close();
+      if (res?.id)
+        push({ label: "add task", run: () => deleteRow(res.id) });
     });
   };
 

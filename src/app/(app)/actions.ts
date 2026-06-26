@@ -9,6 +9,7 @@ import {
   canSeeTask,
   canManageLooseTask,
   assertFieldVisible,
+  isAdmin,
 } from "@/lib/access";
 
 type Scope = "BROOD" | "EVERYONE" | "PRIVATE";
@@ -97,6 +98,56 @@ export async function createTask(input: {
   }
 
   refreshTaskSurfaces(tabId);
+  return { id: task.id };
+}
+
+export type TaskSnapshot = {
+  tabId: string | null;
+  scope: Scope;
+  createdById: string | null;
+  source: "manual" | "whatsapp";
+  values: Record<string, unknown>;
+  assigneeIds: string[];
+};
+
+/** Recreate a task from a snapshot (used to undo a delete). Returns the new id. */
+export async function restoreTask(snap: TaskSnapshot) {
+  const user = await requireUser();
+  const allowed =
+    isAdmin(user) ||
+    snap.createdById === user.id ||
+    (!!snap.tabId && (await canAccessTab(user, snap.tabId)));
+  if (!allowed) throw new Error("Forbidden");
+
+  const last = await prisma.task.findFirst({
+    where:
+      snap.tabId === null
+        ? { scope: snap.scope, tabId: null }
+        : { tabId: snap.tabId },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+
+  const validAssignees = (
+    await prisma.user.findMany({
+      where: { id: { in: snap.assigneeIds } },
+      select: { id: true },
+    })
+  ).map((u) => u.id);
+
+  const task = await prisma.task.create({
+    data: {
+      tabId: snap.tabId,
+      scope: snap.scope,
+      createdById: snap.createdById,
+      source: snap.source,
+      position: (last?.position ?? 0) + 1,
+      values: snap.values as Prisma.InputJsonObject,
+      assignees: { create: validAssignees.map((userId) => ({ userId })) },
+    },
+  });
+  refreshTaskSurfaces(snap.tabId);
+  return { id: task.id };
 }
 
 /** Move a task to a brood, to All Tasks (EVERYONE), or to My Tasks (PRIVATE). */
@@ -107,7 +158,7 @@ export async function moveTask(
   const user = await requireUser();
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { tabId: true, createdById: true },
+    select: { tabId: true, scope: true, createdById: true },
   });
   if (!(await canManageLooseTask(user, task))) throw new Error("Forbidden");
 
@@ -137,18 +188,34 @@ export async function moveTask(
 
   refreshTaskSurfaces(task.tabId);
   if (target.kind === "brood") revalidatePath(`/tab/${target.tabId}`);
+  return { prevTabId: task.tabId, prevScope: task.scope as Scope };
 }
 
-export async function deleteRow(taskId: string) {
+export async function deleteRow(taskId: string): Promise<TaskSnapshot> {
   const user = await requireUser();
   if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
   const found = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { tabId: true, createdById: true },
+    select: {
+      tabId: true,
+      scope: true,
+      createdById: true,
+      source: true,
+      values: true,
+      assignees: { select: { userId: true } },
+    },
   });
   if (!(await canManageLooseTask(user, found))) throw new Error("Forbidden");
   await prisma.task.delete({ where: { id: taskId } });
   refreshTaskSurfaces(found.tabId);
+  return {
+    tabId: found.tabId,
+    scope: found.scope as Scope,
+    createdById: found.createdById,
+    source: found.source,
+    values: found.values as Record<string, unknown>,
+    assigneeIds: found.assignees.map((a) => a.userId),
+  };
 }
 
 export async function updateCell(
