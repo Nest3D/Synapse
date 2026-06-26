@@ -11,6 +11,7 @@ import {
   assertFieldVisible,
   isAdmin,
 } from "@/lib/access";
+import { defaultDeadlines } from "@/lib/alerts";
 
 type Scope = "BROOD" | "EVERYONE" | "PRIVATE";
 
@@ -82,6 +83,7 @@ export async function createTask(input: {
       position: (last?.position ?? 0) + 1,
       values: { [descKey]: text, done: false } as Prisma.InputJsonObject,
       assignees: { create: validTagged.map((userId) => ({ userId })) },
+      ...defaultDeadlines(),
     },
   });
 
@@ -353,6 +355,44 @@ export async function untagTask(taskId: string, userIds: string[]) {
     select: { tabId: true },
   });
   refreshTaskSurfaces(task?.tabId ?? null);
+}
+
+/** Set a task's reminder time (re-arms the due-soon email). */
+export async function setTaskAlert(taskId: string, alertAtISO: string) {
+  const user = await requireUser();
+  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
+  const alertAt = new Date(alertAtISO);
+  if (Number.isNaN(alertAt.getTime())) throw new Error("Invalid date");
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { alertAt, dueSoonAlertedAt: null },
+  });
+  refreshTaskSurfaces();
+}
+
+/** Admin-only: snooze a task's alerts by a day (re-arms both reminders). */
+export async function snoozeTask(taskId: string) {
+  const user = await requireUser();
+  if (!isAdmin(user)) throw new Error("Forbidden");
+  const t = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { dueAt: true, alertAt: true },
+  });
+  const day = 24 * 3_600_000;
+  const dueAt = new Date((t.dueAt?.getTime() ?? Date.now()) + day);
+  const alertAt = t.alertAt
+    ? new Date(t.alertAt.getTime() + day)
+    : new Date(dueAt.getTime() - 4 * 3_600_000);
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      dueAt,
+      alertAt,
+      dueSoonAlertedAt: null,
+      overdueAlertedAt: null,
+    },
+  });
+  refreshTaskSurfaces();
 }
 
 export async function markNotificationsRead() {

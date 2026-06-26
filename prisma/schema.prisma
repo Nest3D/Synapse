@@ -164,6 +164,10 @@ model Task {
   source      TaskSource @default(manual)
   values      Json       @default("{}") // keyed by FieldDef.key (or description/done when brood-less)
   doneAt      DateTime? // set when marked done; drives the Done page
+  dueAt       DateTime? // deadline (default: created + 24h)
+  alertAt     DateTime? // when to send the "due soon" reminder
+  dueSoonAlertedAt DateTime? // set once the reminder email is sent
+  overdueAlertedAt DateTime? // set once the overdue email is sent
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -174,6 +178,7 @@ model Task {
   @@index([tabId])
   @@index([scope])
   @@index([createdById])
+  @@index([dueAt])
 }
 
 // Tagged people: extra visibility + notification targets for a task.

@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, MessageCircle, Check, Send, UserPlus } from "lucide-react";
+import {
+  Trash2,
+  MessageCircle,
+  Check,
+  Send,
+  UserPlus,
+  Clock,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -14,6 +21,8 @@ import {
   restoreTask,
   tagTask,
   untagTask,
+  setTaskAlert,
+  snoozeTask,
 } from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
@@ -29,6 +38,8 @@ export type Row = {
   id: string;
   source: "manual" | "whatsapp";
   values: Record<string, unknown>;
+  dueAt?: string | Date | null;
+  alertAt?: string | Date | null;
 };
 
 export type BroodOpt = { id: string; name: string };
@@ -40,6 +51,7 @@ export function TaskGrid({
   canEdit,
   broods = [],
   members = [],
+  isAdmin = false,
 }: {
   fields: FieldCol[];
   rows: Row[];
@@ -47,6 +59,7 @@ export function TaskGrid({
   /** Handoff destinations: broods and people. */
   broods?: BroodOpt[];
   members?: MemberOpt[];
+  isAdmin?: boolean;
 }) {
   const [, startTransition] = React.useTransition();
   const { push } = useUndo();
@@ -162,6 +175,14 @@ export function TaskGrid({
                   {showActions && (
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        {canEdit && (
+                          <AlertControl
+                            taskId={row.id}
+                            dueAt={row.dueAt ?? null}
+                            alertAt={row.alertAt ?? null}
+                            isAdmin={isAdmin}
+                          />
+                        )}
                         {doneField && (
                           <DoneToggle
                             checked={Boolean(row.values[doneField.key])}
@@ -421,6 +442,124 @@ function DoneToggle({
         onToggle(next);
       }}
     />
+  );
+}
+
+/** Per-task alert time + admin snooze (popover, clock icon). */
+function AlertControl({
+  taskId,
+  dueAt,
+  alertAt,
+  isAdmin,
+}: {
+  taskId: string;
+  dueAt: string | Date | null;
+  alertAt: string | Date | null;
+  isAdmin: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [pending, start] = React.useTransition();
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const due = dueAt ? new Date(dueAt) : null;
+  const dueMs = due ? due.getTime() : null;
+  const [nowMs] = React.useState(() => Date.now());
+  const overdue = dueMs != null && dueMs < nowMs;
+  const toLocal = (d: Date) =>
+    new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  const [val, setVal] = React.useState(
+    alertAt ? toLocal(new Date(alertAt)) : "",
+  );
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("en", {
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+
+  const save = () => {
+    if (!val) return;
+    start(() =>
+      setTaskAlert(taskId, new Date(val).toISOString()).then(() =>
+        setOpen(false),
+      ),
+    );
+  };
+  const snooze = () =>
+    start(() => snoozeTask(taskId).then(() => setOpen(false)));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Task alert"
+        className={cn(
+          "group/ra flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium outline-none transition-colors hover:bg-surface-2",
+          overdue ? "text-danger" : "text-faint hover:text-ink",
+        )}
+      >
+        <Clock className="h-3.5 w-3.5" />
+        <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all duration-200 group-hover/ra:max-w-[5rem]">
+          Alert
+        </span>
+      </button>
+
+      {open && (
+        <div className="glass card-float absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-border p-3 text-left">
+          <p className="text-xs text-muted">
+            {due ? (
+              <>
+                Due{" "}
+                <span className={overdue ? "text-danger" : "text-ink"}>
+                  {fmt(due)}
+                </span>
+              </>
+            ) : (
+              "No due time"
+            )}
+          </p>
+          <label className="mt-2 block font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
+            Alert time
+          </label>
+          <input
+            type="datetime-local"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={snooze}
+                disabled={pending}
+                className="text-[11px] text-faint transition-colors hover:text-ink"
+              >
+                Snooze a day
+              </button>
+            ) : (
+              <span />
+            )}
+            <Button size="sm" disabled={pending || !val} onClick={save}>
+              Set
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

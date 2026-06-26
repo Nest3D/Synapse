@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getMyTaskSections, type SessionUser } from "@/lib/access";
+import { defaultDeadlines } from "@/lib/alerts";
 import {
   normalizePhone,
   parseMessage,
@@ -214,6 +215,7 @@ export async function ingestParsedMessage(
       position: (last?.position ?? 0) + 1,
       values: { [descKey]: description, done: false } as Prisma.InputJsonObject,
       assignees: { create: assigneeIds.map((userId) => ({ userId })) },
+      ...defaultDeadlines(),
     },
   });
 

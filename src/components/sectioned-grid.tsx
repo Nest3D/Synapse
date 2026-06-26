@@ -26,11 +26,13 @@ export function SectionedGrid({
   broods,
   members,
   emptyLabel,
+  isAdmin = false,
 }: {
   sections: Section[];
   broods: BroodOpt[];
   members: MemberOpt[];
   emptyLabel: string;
+  isAdmin?: boolean;
 }) {
   if (sections.length === 0) {
     return (
@@ -68,6 +70,7 @@ export function SectionedGrid({
             canEdit
             broods={broods}
             members={members}
+            isAdmin={isAdmin}
           />
         </section>
       ))}

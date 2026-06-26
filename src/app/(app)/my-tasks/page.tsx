@@ -4,6 +4,7 @@ import {
   getApprovedUser,
   getMyTaskSections,
   getVisibleTabs,
+  isAdmin,
 } from "@/lib/access";
 import { SectionedGrid, type Section } from "@/components/sectioned-grid";
 import { AddTask, type TagUser } from "@/components/add-task";
@@ -49,6 +50,7 @@ export default async function MyTasksPage() {
         sections={sections as unknown as Section[]}
         broods={broodOpts}
         members={tagUsers.filter((u) => u.id !== user.id)}
+        isAdmin={isAdmin(user)}
         emptyLabel="Nothing scoped to you yet. Add a task to get started."
       />
     </div>

@@ -298,6 +298,8 @@ export type GridRow = {
   id: string;
   source: "manual" | "whatsapp";
   values: Record<string, unknown>;
+  dueAt: Date | null;
+  alertAt: Date | null;
 };
 
 export type GridSection = {
@@ -311,10 +313,14 @@ const toRow = (t: {
   id: string;
   source: "manual" | "whatsapp";
   values: unknown;
+  dueAt: Date | null;
+  alertAt: Date | null;
 }): GridRow => ({
   id: t.id,
   source: t.source,
   values: t.values as Record<string, unknown>,
+  dueAt: t.dueAt,
+  alertAt: t.alertAt,
 });
 
 /**

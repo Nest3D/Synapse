@@ -53,6 +53,8 @@ export default async function TabPage({
     id: t.id,
     source: t.source,
     values: t.values as Record<string, unknown>,
+    dueAt: t.dueAt,
+    alertAt: t.alertAt,
   }));
 
   return (
@@ -96,6 +98,7 @@ export default async function TabPage({
           canEdit
           broods={broodOpts}
           members={tagUsers.filter((u) => u.id !== user.id)}
+          isAdmin={isAdmin(user)}
         />
       </div>
     </div>
