@@ -5,6 +5,8 @@ import {
   extractMessages,
   parseMessage,
   ingestParsedMessage,
+  handleQueryCommand,
+  sendWhatsApp,
 } from "@/lib/whatsapp";
 
 export const runtime = "nodejs";
@@ -41,6 +43,33 @@ export async function POST(req: NextRequest) {
   const messages = extractMessages(payload);
 
   for (const { from, text } of messages) {
+    // Query command (e.g. "x") → reply with pending tasks instead of ingesting.
+    try {
+      const reply = await handleQueryCommand(text, from);
+      if (reply !== null) {
+        await sendWhatsApp(from, reply);
+        await prisma.whatsAppLog.create({
+          data: {
+            rawPayload: { from, text },
+            parsed: { command: "query" },
+            status: "ok",
+            error: null,
+          },
+        });
+        continue;
+      }
+    } catch (err) {
+      await prisma.whatsAppLog.create({
+        data: {
+          rawPayload: { from, text },
+          parsed: { command: "query" },
+          status: "error",
+          error: err instanceof Error ? err.message : "Query failed",
+        },
+      });
+      continue;
+    }
+
     const parsed = parseMessage(text);
     try {
       const result = await ingestParsedMessage(parsed, from);

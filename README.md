@@ -244,6 +244,12 @@ member's board (and notifies them). The rest of the message is the task.
 The sender is matched to a member by the **phone number** an admin stores on
 **Broods → People**; that becomes the task's creator. If the first word matches
 nothing, the task lands on the sender's own board. Aliases fall back to brood
-names and member names/nicknames when no explicit alias is defined. The
-integration is **ingest-only** (no replies); see **Broods → WhatsApp → Recent
-activity** for what came in.
+names and member names/nicknames when no explicit alias is defined. See
+**Broods → WhatsApp → Recent activity** for what came in.
+
+**Query your tasks:** text **`x`** (or `tasks` / `list` / `?`) and the bot
+replies with your pending tasks grouped by brood + Personal. This reply needs
+outbound enabled: set `WHATSAPP_TOKEN` (a system-user/permanent access token)
+and `WHATSAPP_PHONE_NUMBER_ID` (the business number ID) from Meta. Replies to a
+message you sent within the last 24h need no template. Without these vars the
+bot stays ingest-only (no reply).

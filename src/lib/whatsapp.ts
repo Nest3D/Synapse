@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { getMyTaskSections, type SessionUser } from "@/lib/access";
 import {
   normalizePhone,
   parseMessage,
@@ -234,4 +235,83 @@ export async function ingestParsedMessage(
   }
 
   return { ok: true, taskId: task.id, tabId, placement };
+}
+
+/* ---------------- Outbound: query pending tasks ---------------- */
+
+const QUERY_WORDS = new Set(["x", "tasks", "list", "?"]);
+
+function describe(values: Record<string, unknown>): string {
+  if (typeof values.description === "string" && values.description)
+    return values.description;
+  const firstStr = Object.values(values).find(
+    (v) => typeof v === "string" && v,
+  );
+  return (firstStr as string) ?? "—";
+}
+
+/**
+ * If the message is a query command (e.g. "x"), build the reply text: the
+ * sender's pending tasks grouped by brood + personal. Returns null if it isn't
+ * a query (so the message should be ingested as a task instead).
+ */
+export async function handleQueryCommand(
+  text: string,
+  fromPhone: string,
+): Promise<string | null> {
+  if (!QUERY_WORDS.has(text.trim().toLowerCase())) return null;
+
+  const sender = await prisma.user.findFirst({
+    where: { phone: normalizePhone(fromPhone), status: "approved" },
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      email: true,
+      role: true,
+      status: true,
+    },
+  });
+  if (!sender)
+    return "Your number isn't linked to an account yet — ask an admin to add it.";
+
+  const sections = await getMyTaskSections(sender as SessionUser);
+  if (sections.length === 0) return "✅ No pending tasks — you're all caught up!";
+
+  const blocks = sections.map((s) => {
+    const lines = s.rows.map((r) => `• ${describe(r.values)}`).join("\n");
+    return `*${s.tabName}*\n${lines}`;
+  });
+  return `📋 Your pending tasks\n\n${blocks.join("\n\n")}`;
+}
+
+/**
+ * Send a WhatsApp text reply via the Cloud Send API. Returns false (no-op) when
+ * outbound isn't configured (WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID).
+ */
+export async function sendWhatsApp(to: string, body: string): Promise<boolean> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId || !to) return false;
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to,
+          type: "text",
+          text: { body: body.slice(0, 4000) },
+        }),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
