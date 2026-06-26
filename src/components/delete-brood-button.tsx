@@ -52,9 +52,8 @@ export function DeleteBroodButton({
                 Delete brood?
               </h2>
               <p className="mt-2 text-sm text-muted">
-                This permanently deletes{" "}
-                <span className="font-medium text-ink">{name}</span> and all of
-                its tasks. This can&apos;t be undone.
+                <span className="font-medium text-ink">{name}</span> and its
+                tasks are removed from your broods and moved to Archive.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button

@@ -68,7 +68,10 @@ export function extractTextMessages(payload: unknown): string[] {
 /** Resolve a tab by name (case-insensitive). */
 export async function resolveTab(name: string) {
   return prisma.tab.findFirst({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      archivedAt: null,
+    },
   });
 }
 

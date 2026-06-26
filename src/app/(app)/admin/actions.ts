@@ -125,9 +125,14 @@ export async function deleteTab(tabId: string) {
   const allowed =
     (isAdmin(user) && tab.ownerId === null) || tab.ownerId === user.id;
   if (!allowed) throw new Error("Forbidden");
-  await prisma.tab.delete({ where: { id: tabId } });
+  // Soft-delete: the brood moves to Archive instead of being destroyed.
+  await prisma.tab.update({
+    where: { id: tabId },
+    data: { archivedAt: new Date() },
+  });
   revalidatePath("/admin/broods");
   revalidatePath("/", "layout");
+  revalidatePath("/archive");
 }
 
 /* ---- Columns ---- */

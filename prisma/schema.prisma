@@ -105,11 +105,12 @@ model VerificationToken {
 
 // ---- Domain models ----
 model Tab {
-  id        String   @id @default(cuid())
-  name      String
-  order     Int      @default(0)
-  ownerId   String? // null = shared brood (admin); set = personal brood, owner-only
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  name       String
+  order      Int       @default(0)
+  ownerId    String? // null = shared brood (admin); set = personal brood, owner-only
+  archivedAt DateTime? // set when the brood is archived ("deleted")
+  createdAt  DateTime  @default(now())
 
   owner  User?      @relation("BroodOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   fields FieldDef[]

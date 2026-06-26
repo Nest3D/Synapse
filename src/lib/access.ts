@@ -52,6 +52,7 @@ export function fieldVisible(
 /** All broods with their columns + access lists. Cached per request. */
 const getTabsWithFields = cache(async () =>
   prisma.tab.findMany({
+    where: { archivedAt: null },
     orderBy: { order: "asc" },
     include: {
       fields: {
@@ -253,6 +254,44 @@ export async function getArchivedTasks(
   return out;
 }
 
+export type ArchivedBrood = {
+  id: string;
+  name: string;
+  archivedAt: Date;
+  taskCount: number;
+  personal: boolean;
+};
+
+/** Archived ("deleted") broods the user may see: their own + shared (if admin). */
+export async function getArchivedBroods(
+  user: SessionUser,
+): Promise<ArchivedBrood[]> {
+  const tabs = await prisma.tab.findMany({
+    where: {
+      archivedAt: { not: null },
+      OR: [
+        { ownerId: user.id },
+        ...(isAdmin(user) ? [{ ownerId: null }] : []),
+      ],
+    },
+    orderBy: { archivedAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      ownerId: true,
+      archivedAt: true,
+      _count: { select: { tasks: true } },
+    },
+  });
+  return tabs.map((t) => ({
+    id: t.id,
+    name: t.name,
+    archivedAt: t.archivedAt!,
+    taskCount: t._count.tasks,
+    personal: t.ownerId !== null,
+  }));
+}
+
 /* ---------------- My Tasks (aggregate across accessible broods) ---------------- */
 
 export type GridRow = {
@@ -377,7 +416,7 @@ export type BroodAccess = {
 /** Every brood with its columns + current access rules, for the People page. */
 export async function getBroodAccessConfig(): Promise<BroodAccess[]> {
   const tabs = await prisma.tab.findMany({
-    where: { ownerId: null }, // personal broods aren't admin-managed
+    where: { ownerId: null, archivedAt: null }, // personal broods aren't admin-managed
     orderBy: { order: "asc" },
     select: {
       id: true,
