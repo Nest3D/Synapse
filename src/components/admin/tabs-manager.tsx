@@ -4,6 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, X, ChevronDown, Columns3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
   createTab,
   renameTab,
@@ -217,16 +218,18 @@ function FieldsSection({
             placeholder="New column label"
             className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-accent/50"
           />
-          <select
+          <Select
             value={type}
-            onChange={(e) => setType(e.target.value as FieldType)}
-            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none"
-          >
-            <option value="text">text</option>
-            <option value="select">select</option>
-            <option value="checkbox">checkbox</option>
-            <option value="date">date</option>
-          </select>
+            onChange={(v) => setType(v as FieldType)}
+            ariaLabel="Column type"
+            className="w-32 shrink-0"
+            options={[
+              { value: "text", label: "text" },
+              { value: "select", label: "select" },
+              { value: "checkbox", label: "checkbox" },
+              { value: "date", label: "date" },
+            ]}
+          />
         </div>
         {type === "select" && (
           <input

@@ -4,6 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { setFieldAccess, setBroodAccess } from "@/app/(app)/admin/actions";
 
@@ -171,17 +172,16 @@ function RuleEditor({
             <span className="ml-2 text-xs font-normal text-faint">{hint}</span>
           )}
         </span>
-        <select
+        <Select
           value={mode}
-          onChange={(e) => setMode(e.target.value as Mode)}
-          className="rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        >
-          {(["ALL", "INCLUDE", "EXCLUDE"] as const).map((m) => (
-            <option key={m} value={m}>
-              {MODE_LABEL[m]}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setMode(v as Mode)}
+          ariaLabel="Access mode"
+          className="w-44"
+          options={(["ALL", "INCLUDE", "EXCLUDE"] as const).map((m) => ({
+            value: m,
+            label: MODE_LABEL[m],
+          }))}
+        />
         <Button
           size="sm"
           variant="secondary"

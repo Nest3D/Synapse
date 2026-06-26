@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { inviteUser } from "@/app/(app)/admin/actions";
 
 export function InviteForm() {
@@ -39,15 +40,16 @@ export function InviteForm() {
           placeholder="person@example.com"
           className="min-w-[16rem] flex-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
         />
-        <select
-          aria-label="Role"
+        <Select
+          ariaLabel="Role"
           value={role}
-          onChange={(e) => setRole(e.target.value as "admin" | "member")}
-          className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm text-ink"
-        >
-          <option value="member">member</option>
-          <option value="admin">admin</option>
-        </select>
+          onChange={(v) => setRole(v as "admin" | "member")}
+          className="w-32"
+          options={[
+            { value: "member", label: "member" },
+            { value: "admin", label: "admin" },
+          ]}
+        />
         <Button disabled={pending || !email} onClick={submit}>
           Send invite
         </Button>

@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, MessageCircle, Check, ChevronDown } from "lucide-react";
+import { Plus, Trash2, MessageCircle, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 import { addRow, deleteRow, updateCell } from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
@@ -274,23 +275,17 @@ function SelectCell({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="relative">
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-md bg-transparent px-2 py-1.5 pr-7 text-ink outline-none focus:bg-surface-2 disabled:opacity-60"
-      >
-        <option value="" className="bg-surface text-muted">
-          —
-        </option>
-        {options.map((o) => (
-          <option key={o} value={o} className="bg-surface text-ink">
-            {o}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-    </div>
+    <Select
+      value={value}
+      options={[
+        { value: "", label: "—" },
+        ...options.map((o) => ({ value: o, label: o })),
+      ]}
+      onChange={onChange}
+      disabled={disabled}
+      variant="cell"
+      ariaLabel="Select option"
+      className="min-w-[8rem]"
+    />
   );
 }
