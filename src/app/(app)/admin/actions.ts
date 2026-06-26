@@ -115,7 +115,16 @@ export async function renameTab(tabId: string, name: string) {
 }
 
 export async function deleteTab(tabId: string) {
-  await requireAdmin();
+  const user = await getCurrentUser();
+  if (!user || user.status !== "approved") throw new Error("Unauthorized");
+  const tab = await prisma.tab.findUniqueOrThrow({
+    where: { id: tabId },
+    select: { ownerId: true },
+  });
+  // Admins delete shared broods; members delete only their own personal broods.
+  const allowed =
+    (isAdmin(user) && tab.ownerId === null) || tab.ownerId === user.id;
+  if (!allowed) throw new Error("Forbidden");
   await prisma.tab.delete({ where: { id: tabId } });
   revalidatePath("/admin/broods");
   revalidatePath("/", "layout");

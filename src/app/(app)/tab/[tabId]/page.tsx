@@ -7,10 +7,12 @@ import {
   getVisibleTasks,
   getVisibleFields,
   getTab,
+  isAdmin,
 } from "@/lib/access";
 import { Lock } from "lucide-react";
 import { TaskGrid } from "@/components/task-grid";
 import { AddTask, type TagUser } from "@/components/add-task";
+import { DeleteBroodButton } from "@/components/delete-brood-button";
 
 export default async function TabPage({
   params,
@@ -69,7 +71,12 @@ export default async function TabPage({
             </p>
           )}
         </div>
-        <AddTask scope="BROOD" tabId={tabId} users={tagUsers} />
+        <div className="flex items-center gap-2">
+          {((isAdmin(user) && !tab.ownerId) || tab.ownerId === user.id) && (
+            <DeleteBroodButton tabId={tabId} name={tab.name} />
+          )}
+          <AddTask scope="BROOD" tabId={tabId} users={tagUsers} />
+        </div>
       </div>
 
       <div className="mt-6">
