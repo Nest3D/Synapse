@@ -29,47 +29,61 @@ export type Row = {
 };
 
 export type BroodOpt = { id: string; name: string };
+export type MemberOpt = { id: string; label: string };
 
 export function TaskGrid({
   fields,
   rows,
   canEdit,
   broods = [],
+  members = [],
 }: {
   fields: FieldCol[];
   rows: Row[];
   canEdit: boolean;
-  /** When provided, each row gets a "Move…" menu (All Tasks / My Tasks / brood). */
+  /** Handoff destinations: broods and people. */
   broods?: BroodOpt[];
+  members?: MemberOpt[];
 }) {
   const [, startTransition] = React.useTransition();
   const { push } = useUndo();
-  const showActions = canEdit;
+
+  // The "done" checkbox is pulled out of the columns and shown in the actions
+  // cell, next to the handoff icon.
+  const doneField = fields.find((f) => f.key === "done" && f.type === "checkbox");
+  const cols = doneField ? fields.filter((f) => f !== doneField) : fields;
+  const showActions = canEdit || !!doneField;
 
   const moveOptions = [
     { value: "everyone", label: "→ All Tasks" },
     { value: "private", label: "→ My Tasks" },
     ...broods.map((b) => ({ value: `brood:${b.id}`, label: `→ ${b.name}` })),
+    ...members.map((m) => ({ value: `person:${m.id}`, label: `@ ${m.label}` })),
   ];
+
+  const parseTarget = (v: string) =>
+    v.startsWith("person:")
+      ? ({ kind: "person", userId: v.slice("person:".length) } as const)
+      : v.startsWith("brood:")
+        ? ({ kind: "brood", tabId: v.slice("brood:".length) } as const)
+        : v === "everyone"
+          ? ({ kind: "everyone" } as const)
+          : ({ kind: "private" } as const);
 
   const doMove = (taskId: string, v: string) => {
     if (!v) return;
-    const target =
-      v === "everyone"
-        ? ({ kind: "everyone" } as const)
-        : v === "private"
-          ? ({ kind: "private" } as const)
-          : ({ kind: "brood", tabId: v.slice("brood:".length) } as const);
     startTransition(async () => {
-      const prev = await moveTask(taskId, target);
+      const prev = await moveTask(taskId, parseTarget(v));
       if (!prev) return;
       const back =
         prev.prevScope === "BROOD" && prev.prevTabId
           ? ({ kind: "brood", tabId: prev.prevTabId } as const)
           : prev.prevScope === "EVERYONE"
             ? ({ kind: "everyone" } as const)
-            : ({ kind: "private" } as const);
-      push({ label: "move", run: () => moveTask(taskId, back) });
+            : prev.prevCreatedById
+              ? ({ kind: "person", userId: prev.prevCreatedById } as const)
+              : ({ kind: "private" } as const);
+      push({ label: "handoff", run: () => moveTask(taskId, back) });
     });
   };
 
@@ -93,7 +107,7 @@ export function TaskGrid({
           <thead>
             <tr className="border-b border-border bg-surface-2/60">
               <th className="w-10 px-3 py-3" />
-              {fields.map((f) => (
+              {cols.map((f) => (
                 <th
                   key={f.key}
                   className="px-4 py-3 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.15em] text-faint"
@@ -101,7 +115,7 @@ export function TaskGrid({
                   {f.label}
                 </th>
               ))}
-              {showActions && <th className="w-44 px-3 py-3" />}
+              {showActions && <th className="w-48 px-3 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -129,7 +143,7 @@ export function TaskGrid({
                     )}
                   </td>
 
-                  {fields.map((f) => (
+                  {cols.map((f) => (
                     <td key={f.key} className="px-2 py-1.5 align-middle">
                       <Cell
                         row={row}
@@ -144,26 +158,44 @@ export function TaskGrid({
 
                   {showActions && (
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                          <Select
-                            value=""
-                            variant="cell"
-                            align="right"
-                            ariaLabel="Handoff task"
-                            iconTrigger={<Send className="h-3.5 w-3.5" />}
-                            hoverLabel="Handoff"
-                            options={moveOptions}
-                            onChange={(v) => doMove(row.id, v)}
+                      <div className="flex items-center justify-end gap-2">
+                        {doneField && (
+                          <CheckCell
+                            checked={Boolean(row.values[doneField.key])}
+                            disabled={!canEdit}
+                            onToggle={(v) =>
+                              doEdit(
+                                row.id,
+                                doneField.key,
+                                v,
+                                row.values[doneField.key],
+                              )
+                            }
                           />
-                        </div>
-                        <button
-                          onClick={() => doDelete(row.id)}
-                          className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
-                          aria-label="Delete row"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        )}
+                        {canEdit && (
+                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <Select
+                              value=""
+                              variant="cell"
+                              align="right"
+                              ariaLabel="Handoff task"
+                              iconTrigger={<Send className="h-3.5 w-3.5" />}
+                              hoverLabel="Handoff"
+                              options={moveOptions}
+                              onChange={(v) => doMove(row.id, v)}
+                            />
+                          </div>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => doDelete(row.id)}
+                            className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}

@@ -48,6 +48,7 @@ export default async function MyTasksPage() {
       <SectionedGrid
         sections={sections as unknown as Section[]}
         broods={broodOpts}
+        members={tagUsers.filter((u) => u.id !== user.id)}
         emptyLabel="Nothing scoped to you yet. Add a task to get started."
       />
     </div>

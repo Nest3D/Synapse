@@ -150,26 +150,43 @@ export async function restoreTask(snap: TaskSnapshot) {
   return { id: task.id };
 }
 
-/** Move a task to a brood, to All Tasks (EVERYONE), or to My Tasks (PRIVATE). */
+/**
+ * Hand a task off: to a brood, to All Tasks (EVERYONE), to My Tasks (PRIVATE,
+ * mine), or to a specific person's board (PRIVATE owned by them + notify).
+ */
 export async function moveTask(
   taskId: string,
-  target: { kind: "brood"; tabId: string } | { kind: "everyone" } | { kind: "private" },
+  target:
+    | { kind: "brood"; tabId: string }
+    | { kind: "everyone" }
+    | { kind: "private" }
+    | { kind: "person"; userId: string },
 ) {
   const user = await requireUser();
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { tabId: true, scope: true, createdById: true },
+    select: { tabId: true, scope: true, createdById: true, values: true },
   });
   if (!(await canManageLooseTask(user, task))) throw new Error("Forbidden");
 
-  let data: { tabId: string | null; scope: Scope };
+  let data: { tabId: string | null; scope: Scope; createdById?: string | null };
+  let notifyUserId: string | null = null;
+
   if (target.kind === "brood") {
     if (!(await canAccessTab(user, target.tabId))) throw new Error("Forbidden");
     data = { tabId: target.tabId, scope: "BROOD" };
   } else if (target.kind === "everyone") {
     data = { tabId: null, scope: "EVERYONE" };
+  } else if (target.kind === "private") {
+    data = { tabId: null, scope: "PRIVATE", createdById: user.id };
   } else {
-    data = { tabId: null, scope: "PRIVATE" };
+    const recipient = await prisma.user.findFirst({
+      where: { id: target.userId, status: "approved" },
+      select: { id: true },
+    });
+    if (!recipient) throw new Error("Unknown member");
+    data = { tabId: null, scope: "PRIVATE", createdById: recipient.id };
+    notifyUserId = recipient.id;
   }
 
   const last = await prisma.task.findFirst({
@@ -186,9 +203,27 @@ export async function moveTask(
     data: { ...data, position: (last?.position ?? 0) + 1 },
   });
 
+  if (notifyUserId && notifyUserId !== user.id) {
+    const v = task.values as Record<string, unknown>;
+    const text = typeof v.description === "string" ? v.description : "a task";
+    const actorName = user.name ?? user.email ?? "Someone";
+    await prisma.notification.create({
+      data: {
+        userId: notifyUserId,
+        actorName,
+        taskId,
+        message: `${actorName} handed off to you: "${text.slice(0, 80)}"`,
+      },
+    });
+  }
+
   refreshTaskSurfaces(task.tabId);
   if (target.kind === "brood") revalidatePath(`/tab/${target.tabId}`);
-  return { prevTabId: task.tabId, prevScope: task.scope as Scope };
+  return {
+    prevTabId: task.tabId,
+    prevScope: task.scope as Scope,
+    prevCreatedById: task.createdById,
+  };
 }
 
 export async function deleteRow(taskId: string): Promise<TaskSnapshot> {

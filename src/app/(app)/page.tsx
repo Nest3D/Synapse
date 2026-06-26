@@ -51,6 +51,7 @@ export default async function AllTasksPage() {
         rows={tasks as Row[]}
         canEdit
         broods={broodOpts}
+        members={tagUsers.filter((u) => u.id !== user.id)}
       />
     </div>
   );

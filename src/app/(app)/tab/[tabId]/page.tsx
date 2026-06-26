@@ -82,6 +82,7 @@ export default async function TabPage({
           rows={rows}
           canEdit
           broods={broodOpts}
+          members={tagUsers.filter((u) => u.id !== user.id)}
         />
       </div>
     </div>

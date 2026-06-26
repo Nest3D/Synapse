@@ -7,6 +7,7 @@ import {
   type FieldCol,
   type Row,
   type BroodOpt,
+  type MemberOpt,
 } from "@/components/task-grid";
 
 export type Section = {
@@ -23,10 +24,12 @@ export type Section = {
 export function SectionedGrid({
   sections,
   broods,
+  members,
   emptyLabel,
 }: {
   sections: Section[];
   broods: BroodOpt[];
+  members: MemberOpt[];
   emptyLabel: string;
 }) {
   if (sections.length === 0) {
@@ -59,7 +62,13 @@ export function SectionedGrid({
               · {s.rows.length} {s.rows.length === 1 ? "task" : "tasks"}
             </span>
           </div>
-          <TaskGrid fields={s.fields} rows={s.rows} canEdit broods={broods} />
+          <TaskGrid
+            fields={s.fields}
+            rows={s.rows}
+            canEdit
+            broods={broods}
+            members={members}
+          />
         </section>
       ))}
     </div>
