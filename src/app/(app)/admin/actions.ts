@@ -135,6 +135,27 @@ export async function deleteTab(tabId: string) {
   revalidatePath("/archive");
 }
 
+/**
+ * Admin: turn a shared brood private (owner-only, assigned to this admin) or
+ * back to shared. Only shared broods or this admin's own private brood qualify.
+ */
+export async function setBroodPrivacy(tabId: string, makePrivate: boolean) {
+  const admin = await requireAdmin();
+  const tab = await prisma.tab.findUniqueOrThrow({
+    where: { id: tabId },
+    select: { ownerId: true },
+  });
+  if (tab.ownerId !== null && tab.ownerId !== admin.id)
+    throw new Error("Forbidden");
+  await prisma.tab.update({
+    where: { id: tabId },
+    data: { ownerId: makePrivate ? admin.id : null },
+  });
+  revalidatePath("/admin/broods");
+  revalidatePath("/", "layout");
+  revalidatePath(`/tab/${tabId}`);
+}
+
 /* ---- Columns ---- */
 export async function addField(
   tabId: string,

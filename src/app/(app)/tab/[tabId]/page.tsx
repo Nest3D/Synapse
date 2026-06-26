@@ -13,6 +13,7 @@ import { Lock } from "lucide-react";
 import { TaskGrid } from "@/components/task-grid";
 import { AddTask, type TagUser } from "@/components/add-task";
 import { DeleteBroodButton } from "@/components/delete-brood-button";
+import { BroodPrivacyToggle } from "@/components/brood-privacy-toggle";
 
 export default async function TabPage({
   params,
@@ -72,6 +73,10 @@ export default async function TabPage({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin(user) &&
+            (tab.ownerId === null || tab.ownerId === user.id) && (
+              <BroodPrivacyToggle tabId={tabId} isPrivate={!!tab.ownerId} />
+            )}
           {((isAdmin(user) && !tab.ownerId) || tab.ownerId === user.id) && (
             <DeleteBroodButton tabId={tabId} name={tab.name} />
           )}
