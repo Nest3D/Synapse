@@ -23,6 +23,7 @@ async function requireUser() {
 function refreshTaskSurfaces(tabId?: string | null) {
   revalidatePath("/"); // All Tasks
   revalidatePath("/my-tasks");
+  revalidatePath("/done");
   revalidatePath("/", "layout"); // notification badge
   if (tabId) revalidatePath(`/tab/${tabId}`);
 }
@@ -276,10 +277,12 @@ export async function updateCell(
 
   const values = { ...(task.values as Record<string, unknown>) };
   values[fieldKey] = value;
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { values: values as Prisma.InputJsonObject },
-  });
+  const data: Prisma.TaskUpdateInput = {
+    values: values as Prisma.InputJsonObject,
+  };
+  // Checking the done box moves the task to the Done page (timestamped).
+  if (fieldKey === "done") data.doneAt = value ? new Date() : null;
+  await prisma.task.update({ where: { id: taskId }, data });
   refreshTaskSurfaces(task.tabId);
 }
 

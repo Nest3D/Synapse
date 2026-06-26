@@ -144,6 +144,7 @@ model Task {
   position    Int        @default(0)
   source      TaskSource @default(manual)
   values      Json       @default("{}") // keyed by FieldDef.key (or description/done when brood-less)
+  doneAt      DateTime? // set when marked done; drives the Done page
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 

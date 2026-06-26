@@ -158,7 +158,7 @@ export async function getVisibleTasks(user: SessionUser, tabId: string) {
   if (!(await canAccessTab(user, tabId))) throw new Error("Forbidden");
 
   const tasks = await prisma.task.findMany({
-    where: { tabId },
+    where: { tabId, NOT: { values: { path: ["done"], equals: true } } },
     orderBy: { position: "asc" },
   });
 
@@ -334,6 +334,7 @@ export async function getMyTaskSections(
   // live in a brood I can't otherwise access (so a tag truly reaches me).
   const personal = await prisma.task.findMany({
     where: {
+      NOT: { values: { path: ["done"], equals: true } },
       OR: [
         { tabId: null, scope: "PRIVATE", createdById: user.id },
         { assignees: { some: { userId: user.id } } },
@@ -379,10 +380,88 @@ export async function getMyTaskSections(
 /** "All Tasks": EVERYONE-scope tasks, visible to all approved members. */
 export async function getEveryoneTasks(): Promise<GridRow[]> {
   const tasks = await prisma.task.findMany({
-    where: { scope: "EVERYONE" },
+    where: {
+      scope: "EVERYONE",
+      NOT: { values: { path: ["done"], equals: true } },
+    },
     orderBy: { position: "asc" },
   });
   return tasks.map(toRow);
+}
+
+/* ---------------- Done page + shared log rows ---------------- */
+
+export type LogRow = {
+  id: string;
+  title: string;
+  brood: string;
+  members: string[];
+  at: Date;
+  href: string | null;
+  kind: "task" | "brood";
+};
+
+/** Completed tasks the user can see, as log rows (for the Done page). */
+export async function getDoneTasks(user: SessionUser): Promise<LogRow[]> {
+  const tabs = await getVisibleTabs(user);
+  const accessible = new Set(tabs.map((t) => t.id));
+  const admin = isAdmin(user);
+
+  const done = await prisma.task.findMany({
+    where: { values: { path: ["done"], equals: true } },
+    include: {
+      tab: { select: { name: true } },
+      creator: { select: { name: true, nickname: true, email: true } },
+      assignees: {
+        include: {
+          user: { select: { name: true, nickname: true, email: true } },
+        },
+      },
+    },
+    orderBy: [{ doneAt: "desc" }, { updatedAt: "desc" }],
+  });
+
+  const label = (u: {
+    name: string | null;
+    nickname: string | null;
+    email: string | null;
+  }) => u.nickname ?? u.name ?? u.email ?? "Unknown";
+
+  const rows: LogRow[] = [];
+  for (const t of done) {
+    const see =
+      admin ||
+      t.createdById === user.id ||
+      t.assignees.some((a) => a.userId === user.id) ||
+      t.scope === "EVERYONE" ||
+      (t.scope === "BROOD" && !!t.tabId && accessible.has(t.tabId));
+    if (!see) continue;
+
+    const v = t.values as Record<string, unknown>;
+    const members = Array.from(
+      new Set([
+        ...(t.creator ? [label(t.creator)] : []),
+        ...t.assignees.map((a) => label(a.user)),
+      ]),
+    );
+    rows.push({
+      id: t.id,
+      title:
+        typeof v.description === "string" && v.description
+          ? v.description
+          : "—",
+      brood: t.tab
+        ? t.tab.name
+        : t.scope === "EVERYONE"
+          ? "All Tasks"
+          : "My Tasks",
+      members,
+      at: t.doneAt ?? t.updatedAt,
+      href: t.tabId ? `/tab/${t.tabId}` : null,
+      kind: "task",
+    });
+  }
+  return rows;
 }
 
 /* ---------------- Notifications ---------------- */
