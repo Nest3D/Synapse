@@ -274,26 +274,32 @@ export async function getMyTaskSections(
 ): Promise<GridSection[]> {
   const sections: GridSection[] = [];
 
-  const loose = await prisma.task.findMany({
+  const tabs = await getVisibleTabs(user);
+  const accessible = new Set(tabs.map((t) => t.id));
+
+  // Personal: brood-less private/tagged tasks, plus tasks tagged to me that
+  // live in a brood I can't otherwise access (so a tag truly reaches me).
+  const personal = await prisma.task.findMany({
     where: {
-      tabId: null,
       OR: [
-        { scope: "PRIVATE", createdById: user.id },
+        { tabId: null, scope: "PRIVATE", createdById: user.id },
         { assignees: { some: { userId: user.id } } },
       ],
     },
     orderBy: { position: "asc" },
   });
-  if (loose.length) {
+  const personalRows = personal.filter(
+    (t) => !(t.tabId && accessible.has(t.tabId)),
+  );
+  if (personalRows.length) {
     sections.push({
       tabId: null,
       tabName: "Personal",
       fields: LOOSE_FIELDS,
-      rows: loose.map(toRow),
+      rows: personalRows.map(toRow),
     });
   }
 
-  const tabs = await getVisibleTabs(user);
   for (const tab of tabs) {
     const fields = (await getVisibleFields(user, tab.id)).filter(
       (f) => f.type !== "person",

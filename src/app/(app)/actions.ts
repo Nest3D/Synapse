@@ -283,6 +283,75 @@ export async function updateCell(
   refreshTaskSurfaces(task.tabId);
 }
 
+/** Tag additional people on a task — they get it in their account + a notice.
+ *  Unlike handoff, the task stays where it is. Returns the newly-added ids. */
+export async function tagTask(
+  taskId: string,
+  userIds: string[],
+): Promise<{ added: string[] }> {
+  const user = await requireUser();
+  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
+
+  const valid = (
+    await prisma.user.findMany({
+      where: { id: { in: userIds }, status: "approved" },
+      select: { id: true },
+    })
+  ).map((u) => u.id);
+
+  const existing = new Set(
+    (
+      await prisma.taskAssignee.findMany({
+        where: { taskId, userId: { in: valid } },
+        select: { userId: true },
+      })
+    ).map((a) => a.userId),
+  );
+  const toAdd = valid.filter((id) => !existing.has(id));
+  if (toAdd.length === 0) return { added: [] };
+
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { tabId: true, values: true },
+  });
+
+  await prisma.taskAssignee.createMany({
+    data: toAdd.map((userId) => ({ taskId, userId })),
+  });
+
+  const v = task.values as Record<string, unknown>;
+  const text = typeof v.description === "string" ? v.description : "a task";
+  const actorName = user.name ?? user.email ?? "Someone";
+  const recipients = toAdd.filter((id) => id !== user.id);
+  if (recipients.length) {
+    await prisma.notification.createMany({
+      data: recipients.map((userId) => ({
+        userId,
+        actorName,
+        taskId,
+        message: `${actorName} tagged you on: "${text.slice(0, 80)}"`,
+      })),
+    });
+  }
+
+  refreshTaskSurfaces(task.tabId);
+  return { added: toAdd };
+}
+
+/** Remove tagged people from a task (used to undo a tag). */
+export async function untagTask(taskId: string, userIds: string[]) {
+  const user = await requireUser();
+  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
+  await prisma.taskAssignee.deleteMany({
+    where: { taskId, userId: { in: userIds } },
+  });
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { tabId: true },
+  });
+  refreshTaskSurfaces(task?.tabId ?? null);
+}
+
 export async function markNotificationsRead() {
   const user = await requireUser();
   await prisma.notification.updateMany({

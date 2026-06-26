@@ -2,15 +2,18 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, MessageCircle, Check, Send } from "lucide-react";
+import { Trash2, MessageCircle, Check, Send, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useUndo } from "@/components/undo-context";
 import {
   deleteRow,
   updateCell,
   moveTask,
   restoreTask,
+  tagTask,
+  untagTask,
 } from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
@@ -172,6 +175,9 @@ export function TaskGrid({
                               )
                             }
                           />
+                        )}
+                        {canEdit && members.length > 0 && (
+                          <TagButton taskId={row.id} members={members} />
                         )}
                         {canEdit && (
                           <Select
@@ -415,6 +421,113 @@ function DoneToggle({
         onToggle(next);
       }}
     />
+  );
+}
+
+/** Tag additional people on a task (modal multi-select). They get a copy. */
+function TagButton({
+  taskId,
+  members,
+}: {
+  taskId: string;
+  members: MemberOpt[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [sel, setSel] = React.useState<string[]>([]);
+  const [pending, start] = React.useTransition();
+  const { push } = useUndo();
+
+  const close = () => {
+    setOpen(false);
+    setSel([]);
+  };
+  const toggle = (id: string) =>
+    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const submit = () => {
+    if (!sel.length) {
+      close();
+      return;
+    }
+    start(async () => {
+      const res = await tagTask(taskId, sel);
+      close();
+      if (res?.added?.length)
+        push({ label: "tag", run: () => untagTask(taskId, res.added) });
+    });
+  };
+
+  return (
+    <>
+      <RowAction
+        icon={<UserPlus className="h-3.5 w-3.5" />}
+        label="Tag"
+        onClick={() => setOpen(true)}
+      />
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh]"
+            onClick={() => !pending && close()}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass card-float w-full max-w-md rounded-xl border border-border p-6"
+            >
+              <h2 className="font-display text-lg font-semibold">Tag people</h2>
+              <p className="mt-1 text-xs text-muted">
+                They get this task in their account + a notification. It stays
+                where it is.
+              </p>
+              <div className="mt-4 flex max-h-[45vh] flex-wrap gap-2 overflow-y-auto">
+                {members.map((m) => {
+                  const on = sel.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggle(m.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                        on
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-border text-muted hover:text-ink",
+                      )}
+                    >
+                      {on && <Check className="h-3 w-3" />}
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={close}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={pending || !sel.length}
+                  onClick={submit}
+                >
+                  Tag
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
