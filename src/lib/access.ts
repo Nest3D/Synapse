@@ -389,6 +389,27 @@ export async function getEveryoneTasks(): Promise<GridRow[]> {
   return tasks.map(toRow);
 }
 
+/**
+ * "All Tasks": everything the user can see — the org-wide Everyone tasks, their
+ * personal/tagged tasks, and every accessible brood — grouped into sections.
+ */
+export async function getAllTaskSections(
+  user: SessionUser,
+): Promise<GridSection[]> {
+  const sections: GridSection[] = [];
+  const everyone = await getEveryoneTasks();
+  if (everyone.length) {
+    sections.push({
+      tabId: null,
+      tabName: "Everyone",
+      fields: LOOSE_FIELDS,
+      rows: everyone,
+    });
+  }
+  sections.push(...(await getMyTaskSections(user)));
+  return sections;
+}
+
 /* ---------------- Done page + shared log rows ---------------- */
 
 export type LogRow = {

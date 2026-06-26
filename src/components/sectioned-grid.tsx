@@ -43,7 +43,7 @@ export function SectionedGrid({
   return (
     <div className="flex flex-col gap-8">
       {sections.map((s) => (
-        <section key={s.tabId ?? "personal"}>
+        <section key={s.tabId ?? s.tabName}>
           <div className="mb-2 flex items-center gap-2">
             {s.tabId ? (
               <Link

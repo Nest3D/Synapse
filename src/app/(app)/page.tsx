@@ -2,19 +2,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
   getApprovedUser,
-  getEveryoneTasks,
+  getAllTaskSections,
   getVisibleTabs,
-  LOOSE_FIELDS,
 } from "@/lib/access";
-import { TaskGrid, type FieldCol, type Row } from "@/components/task-grid";
+import { SectionedGrid, type Section } from "@/components/sectioned-grid";
 import { AddTask, type TagUser } from "@/components/add-task";
 
 export default async function AllTasksPage() {
   const user = await getApprovedUser();
   if (!user) redirect("/login");
 
-  const [tasks, broods, users] = await Promise.all([
-    getEveryoneTasks(),
+  const [sections, broods, users] = await Promise.all([
+    getAllTaskSections(user),
     getVisibleTabs(user),
     prisma.user.findMany({
       where: { status: "approved" },
@@ -34,24 +33,24 @@ export default async function AllTasksPage() {
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.3em] text-faint">
-            Everyone
+            Everything
           </p>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-tight">
             All Tasks
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Tasks everyone on the platform can see.
+            Your personal tasks, the org-wide ones, and every brood you can
+            access.
           </p>
         </div>
         <AddTask scope="EVERYONE" users={tagUsers} />
       </div>
 
-      <TaskGrid
-        fields={LOOSE_FIELDS as unknown as FieldCol[]}
-        rows={tasks as Row[]}
-        canEdit
+      <SectionedGrid
+        sections={sections as unknown as Section[]}
         broods={broodOpts}
         members={tagUsers.filter((u) => u.id !== user.id)}
+        emptyLabel="No tasks yet. Add one to get started."
       />
     </div>
   );
