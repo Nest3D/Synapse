@@ -1,19 +1,28 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
-export function TabBar({ tabs }: { tabs: { id: string; name: string }[] }) {
+export type TabItem = { href: string; label: string };
+
+export function TabBar({
+  items,
+  trailing,
+}: {
+  items: TabItem[];
+  trailing?: React.ReactNode;
+}) {
   const pathname = usePathname();
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border-soft bg-surface/40 p-1.5">
-      {tabs.map((tab) => {
-        const active = pathname === `/tab/${tab.id}`;
+      {items.map((item) => {
+        const active = pathname === item.href;
         return (
           <Link
-            key={tab.id}
-            href={`/tab/${tab.id}`}
+            key={item.href}
+            href={item.href}
             className="relative rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           >
             {active && (
@@ -28,11 +37,12 @@ export function TabBar({ tabs }: { tabs: { id: string; name: string }[] }) {
                 active ? "text-ink" : "text-muted hover:text-ink"
               }`}
             >
-              {tab.name}
+              {item.label}
             </span>
           </Link>
         );
       })}
+      {trailing}
     </div>
   );
 }

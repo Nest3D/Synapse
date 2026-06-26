@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
-// People management moved to /people (visible to all members; admin controls
-// are gated there). Keep this path working for old links.
+// Merged into /admin/broods (People section).
 export default function AdminUsersRedirect() {
-  redirect("/people");
+  redirect("/admin/broods");
 }

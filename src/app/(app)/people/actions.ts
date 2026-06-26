@@ -17,7 +17,7 @@ export async function setNickname(userId: string, nickname: string) {
   });
 
   // Nicknames surface as the primary label across the app.
-  revalidatePath("/people");
+  revalidatePath("/admin/broods");
   revalidatePath("/my-tasks");
   revalidatePath("/archive");
   revalidatePath("/", "layout");

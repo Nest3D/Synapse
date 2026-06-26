@@ -13,6 +13,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { UndoProvider } from "@/components/undo-context";
 import { UndoButton } from "@/components/undo-button";
 import { TabBar } from "@/components/tab-bar";
+import { AddBroodButton } from "@/components/add-brood-button";
 
 // Every app route depends on the signed-in user + DB; never prerender.
 export const dynamic = "force-dynamic";
@@ -43,11 +44,8 @@ export default async function AppLayout({
           </Link>
 
           <nav className="ml-2 flex flex-wrap items-center gap-1 text-sm">
-            <NavLink href="/">All Tasks</NavLink>
-            <NavLink href="/my-tasks">My Tasks</NavLink>
             <NavLink href="/archive">Archive</NavLink>
-            {admin && <NavLink href="/people">People</NavLink>}
-            {admin && <NavLink href="/admin/tabs">Brood</NavLink>}
+            {admin && <NavLink href="/admin/broods">Broods</NavLink>}
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
@@ -100,11 +98,16 @@ export default async function AppLayout({
         </div>
       </header>
 
-      {tabs.length > 0 && (
-        <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">
-          <TabBar tabs={tabs.map((t) => ({ id: t.id, name: t.name }))} />
-        </div>
-      )}
+      <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">
+        <TabBar
+          items={[
+            { href: "/", label: "All Tasks" },
+            { href: "/my-tasks", label: "My Tasks" },
+            ...tabs.map((t) => ({ href: `/tab/${t.id}`, label: t.name })),
+          ]}
+          trailing={<AddBroodButton isAdmin={admin} />}
+        />
+      </div>
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-8">
         {children}

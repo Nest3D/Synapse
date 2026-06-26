@@ -67,14 +67,37 @@ export const getTab = cache((tabId: string) =>
   prisma.tab.findUnique({ where: { id: tabId } }),
 );
 
+type TabWithFields = {
+  ownerId: string | null;
+  fields: { accessMode: FieldAccessMode; access: { userId: string }[] }[];
+};
+
+/**
+ * Whether a user can see a brood. Personal broods (ownerId set) are owner-only.
+ * Shared broods are visible to admins, or to anyone with ≥1 visible column.
+ */
+function broodVisibleTo(user: SessionUser, tab: TabWithFields): boolean {
+  if (tab.ownerId) return tab.ownerId === user.id;
+  if (isAdmin(user)) return true;
+  return tab.fields.some((f) =>
+    fieldVisible(false, f.accessMode, f.access.map((a) => a.userId), user.id),
+  );
+}
+
 /** Columns a user may VIEW in a brood (ordered), honoring each column's rule. */
 export const getVisibleFields = cache(
   async (user: SessionUser, tabId: string) => {
     const tab = (await getTabsWithFields()).find((t) => t.id === tabId);
-    if (!tab) return [];
-    const admin = isAdmin(user);
+    if (!tab || !broodVisibleTo(user, tab)) return [];
+    // The owner of a personal brood (and admins) see all its columns.
+    const effectiveAdmin = isAdmin(user) || tab.ownerId === user.id;
     return tab.fields.filter((f) =>
-      fieldVisible(admin, f.accessMode, f.access.map((a) => a.userId), user.id),
+      fieldVisible(
+        effectiveAdmin,
+        f.accessMode,
+        f.access.map((a) => a.userId),
+        user.id,
+      ),
     );
   },
 );
@@ -97,27 +120,18 @@ export async function assertFieldVisible(
   if (!keys.includes(fieldKey)) throw new Error("Forbidden");
 }
 
-/** Broods the user may see: those with ≥1 visible column (admin → all). Cached. */
+/** Broods the user may see: their personal broods + visible shared ones. Cached. */
 export const getVisibleTabs = cache(async (user: SessionUser) => {
   const tabs = await getTabsWithFields();
-  if (isAdmin(user)) return tabs;
-  return tabs.filter((t) =>
-    t.fields.some((f) =>
-      fieldVisible(false, f.accessMode, f.access.map((a) => a.userId), user.id),
-    ),
-  );
+  return tabs.filter((t) => broodVisibleTo(user, t));
 });
 
 /** True if the user may access a given brood at all. Cached per request. */
 export const canAccessTab = cache(
   async (user: SessionUser, tabId: string): Promise<boolean> => {
-    const tabs = await getTabsWithFields();
-    const tab = tabs.find((t) => t.id === tabId);
+    const tab = (await getTabsWithFields()).find((t) => t.id === tabId);
     if (!tab) return false;
-    if (isAdmin(user)) return true;
-    return tab.fields.some((f) =>
-      fieldVisible(false, f.accessMode, f.access.map((a) => a.userId), user.id),
-    );
+    return broodVisibleTo(user, tab);
   },
 );
 
@@ -363,6 +377,7 @@ export type BroodAccess = {
 /** Every brood with its columns + current access rules, for the People page. */
 export async function getBroodAccessConfig(): Promise<BroodAccess[]> {
   const tabs = await prisma.tab.findMany({
+    where: { ownerId: null }, // personal broods aren't admin-managed
     orderBy: { order: "asc" },
     select: {
       id: true,

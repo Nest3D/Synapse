@@ -65,6 +65,7 @@ model User {
   assignments   TaskAssignee[]
   createdTasks  Task[]            @relation("TaskCreator")
   notifications Notification[]
+  ownedBroods   Tab[]             @relation("BroodOwner")
 }
 
 model Account {
@@ -107,10 +108,14 @@ model Tab {
   id        String   @id @default(cuid())
   name      String
   order     Int      @default(0)
+  ownerId   String? // null = shared brood (admin); set = personal brood, owner-only
   createdAt DateTime @default(now())
 
+  owner  User?      @relation("BroodOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   fields FieldDef[]
   tasks  Task[]
+
+  @@index([ownerId])
 }
 
 model FieldDef {
