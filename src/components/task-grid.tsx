@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, MessageCircle, Check } from "lucide-react";
+import { Trash2, MessageCircle, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { addRow, deleteRow, updateCell } from "@/app/(app)/actions";
+import { deleteRow, updateCell, moveTask } from "@/app/(app)/actions";
 
 type FieldType = "text" | "select" | "checkbox" | "person" | "date";
 
@@ -22,20 +22,39 @@ export type Row = {
   values: Record<string, unknown>;
 };
 
+export type BroodOpt = { id: string; name: string };
+
 export function TaskGrid({
-  tabId,
   fields,
   rows,
   canEdit,
-  canAdd = true,
+  broods = [],
 }: {
-  tabId: string;
   fields: FieldCol[];
   rows: Row[];
   canEdit: boolean;
-  canAdd?: boolean;
+  /** When provided, each row gets a "Move…" menu (All Tasks / My Tasks / brood). */
+  broods?: BroodOpt[];
 }) {
-  const [pending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
+  const showActions = canEdit;
+
+  const moveOptions = [
+    { value: "everyone", label: "→ All Tasks" },
+    { value: "private", label: "→ My Tasks" },
+    ...broods.map((b) => ({ value: `brood:${b.id}`, label: `→ ${b.name}` })),
+  ];
+
+  const doMove = (taskId: string, v: string) => {
+    if (!v) return;
+    const target =
+      v === "everyone"
+        ? ({ kind: "everyone" } as const)
+        : v === "private"
+          ? ({ kind: "private" } as const)
+          : ({ kind: "brood", tabId: v.slice("brood:".length) } as const);
+    startTransition(() => moveTask(taskId, target).then(() => {}));
+  };
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
@@ -52,7 +71,7 @@ export function TaskGrid({
                   {f.label}
                 </th>
               ))}
-              {canEdit && <th className="w-12 px-3 py-3" />}
+              {showActions && <th className="w-44 px-3 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -95,19 +114,34 @@ export function TaskGrid({
                     </td>
                   ))}
 
-                  {canEdit && (
-                    <td className="px-2 py-1.5 text-center">
-                      <button
-                        onClick={() =>
-                          startTransition(() =>
-                            deleteRow(row.id).then(() => {}),
-                          )
-                        }
-                        className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
-                        aria-label="Delete row"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                  {showActions && (
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center justify-end gap-1">
+                        {broods.length >= 0 && (
+                          <div className="w-28 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Select
+                              value=""
+                              placeholder="Move…"
+                              variant="cell"
+                              align="right"
+                              ariaLabel="Move task"
+                              options={moveOptions}
+                              onChange={(v) => doMove(row.id, v)}
+                            />
+                          </div>
+                        )}
+                        <button
+                          onClick={() =>
+                            startTransition(() =>
+                              deleteRow(row.id).then(() => {}),
+                            )
+                          }
+                          className="rounded-md p-1.5 text-faint opacity-0 transition-all hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
+                          aria-label="Delete row"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </motion.tr>
@@ -120,19 +154,6 @@ export function TaskGrid({
       {rows.length === 0 && (
         <div className="px-6 py-12 text-center text-sm text-faint">
           No tasks here yet.
-        </div>
-      )}
-
-      {canEdit && canAdd && (
-        <div className="border-t border-border-soft p-2">
-          <button
-            onClick={() => startTransition(() => addRow(tabId).then(() => {}))}
-            disabled={pending}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Add task
-          </button>
         </div>
       )}
     </div>

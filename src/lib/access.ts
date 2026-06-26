@@ -161,11 +161,38 @@ export async function canSeeTask(
 ): Promise<boolean> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { tabId: true },
+    select: {
+      tabId: true,
+      scope: true,
+      createdById: true,
+      assignees: { select: { userId: true } },
+    },
   });
   if (!task) return false;
-  return canAccessTab(user, task.tabId);
+  if (isAdmin(user)) return true;
+  if (task.createdById === user.id) return true;
+  if (task.assignees.some((a) => a.userId === user.id)) return true;
+  if (task.scope === "EVERYONE") return true;
+  if (task.scope === "BROOD" && task.tabId)
+    return canAccessTab(user, task.tabId);
+  return false;
 }
+
+/** Only the creator or an admin may edit/delete a brood-less task. */
+export async function canManageLooseTask(
+  user: SessionUser,
+  task: { tabId: string | null; createdById: string | null },
+): Promise<boolean> {
+  if (isAdmin(user)) return true;
+  if (task.tabId) return true; // brood tasks: anyone with brood access
+  return task.createdById === user.id;
+}
+
+/** Fixed columns for brood-less tasks (no FieldDef). */
+export const LOOSE_FIELDS = [
+  { key: "description", label: "Task", type: "text", options: [] as string[] },
+  { key: "done", label: "Done", type: "checkbox", options: [] as string[] },
+];
 
 export type ArchivedTask = {
   id: string;
@@ -214,37 +241,66 @@ export async function getArchivedTasks(
 
 /* ---------------- My Tasks (aggregate across accessible broods) ---------------- */
 
-export type GridSection = {
-  tabId: string;
-  tabName: string;
-  fields: { key: string; label: string; type: string; options: string[] }[];
-  rows: {
-    id: string;
-    source: "manual" | "whatsapp";
-    values: Record<string, unknown>;
-  }[];
+export type GridRow = {
+  id: string;
+  source: "manual" | "whatsapp";
+  values: Record<string, unknown>;
 };
 
+export type GridSection = {
+  tabId: string | null; // null = the personal (brood-less) section
+  tabName: string;
+  fields: { key: string; label: string; type: string; options: string[] }[];
+  rows: GridRow[];
+};
+
+const toRow = (t: {
+  id: string;
+  source: "manual" | "whatsapp";
+  values: unknown;
+}): GridRow => ({
+  id: t.id,
+  source: t.source,
+  values: t.values as Record<string, unknown>,
+});
+
 /**
- * Every task the user can see, across every brood they can access, grouped by
- * brood. Access to a brood == being tagged to its tasks, so this is the user's
- * personal cross-brood task list. Only broods with visible tasks are included.
+ * "My Tasks": the user's personal brood-less tasks (private to them or tagged
+ * to them) as a Personal section, plus every brood they can access. Access to a
+ * brood == being tagged to its tasks. Only non-empty sections are included.
  */
 export async function getMyTaskSections(
   user: SessionUser,
 ): Promise<GridSection[]> {
-  const tabs = await getVisibleTabs(user);
   const sections: GridSection[] = [];
 
+  const loose = await prisma.task.findMany({
+    where: {
+      tabId: null,
+      OR: [
+        { scope: "PRIVATE", createdById: user.id },
+        { assignees: { some: { userId: user.id } } },
+      ],
+    },
+    orderBy: { position: "asc" },
+  });
+  if (loose.length) {
+    sections.push({
+      tabId: null,
+      tabName: "Personal",
+      fields: LOOSE_FIELDS,
+      rows: loose.map(toRow),
+    });
+  }
+
+  const tabs = await getVisibleTabs(user);
   for (const tab of tabs) {
     const fields = (await getVisibleFields(user, tab.id)).filter(
       (f) => f.type !== "person",
     );
     if (fields.length === 0) continue;
-
     const tasks = await getVisibleTasks(user, tab.id);
     if (tasks.length === 0) continue;
-
     sections.push({
       tabId: tab.id,
       tabName: tab.name,
@@ -254,15 +310,34 @@ export async function getMyTaskSections(
         type: f.type as string,
         options: (f.options as string[] | null) ?? [],
       })),
-      rows: tasks.map((t) => ({
-        id: t.id,
-        source: t.source,
-        values: t.values as Record<string, unknown>,
-      })),
+      rows: tasks.map(toRow),
     });
   }
 
   return sections;
+}
+
+/** "All Tasks": EVERYONE-scope tasks, visible to all approved members. */
+export async function getEveryoneTasks(): Promise<GridRow[]> {
+  const tasks = await prisma.task.findMany({
+    where: { scope: "EVERYONE" },
+    orderBy: { position: "asc" },
+  });
+  return tasks.map(toRow);
+}
+
+/* ---------------- Notifications ---------------- */
+
+export async function getNotifications(user: SessionUser) {
+  const [items, unread] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
+    prisma.notification.count({ where: { userId: user.id, read: false } }),
+  ]);
+  return { items, unread };
 }
 
 /* ---------------- Admin: permission configuration ---------------- */

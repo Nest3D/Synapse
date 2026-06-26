@@ -35,6 +35,12 @@ enum TaskSource {
   whatsapp
 }
 
+enum TaskScope {
+  BROOD // belongs to a brood; visibility via column access (+ tags / creator)
+  EVERYONE // every approved member can see it ("All Tasks")
+  PRIVATE // only the creator (+ tagged people) can see it ("My Tasks")
+}
+
 enum FieldAccessMode {
   ALL // every approved user
   INCLUDE // only the listed users
@@ -53,9 +59,12 @@ model User {
   status        UserStatus @default(pending)
   createdAt     DateTime   @default(now())
 
-  accounts    Account[]
-  sessions    Session[]
-  fieldAccess FieldAccessUser[]
+  accounts      Account[]
+  sessions      Session[]
+  fieldAccess   FieldAccessUser[]
+  assignments   TaskAssignee[]
+  createdTasks  Task[]            @relation("TaskCreator")
+  notifications Notification[]
 }
 
 model Account {
@@ -122,16 +131,51 @@ model FieldDef {
 }
 
 model Task {
-  id        String     @id @default(cuid())
-  tabId     String
-  position  Int        @default(0)
-  source    TaskSource @default(manual)
-  values    Json       @default("{}") // keyed by FieldDef.key
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  tab       Tab        @relation(fields: [tabId], references: [id], onDelete: Cascade)
+  id          String     @id @default(cuid())
+  tabId       String? // null for brood-less tasks (EVERYONE / PRIVATE)
+  scope       TaskScope  @default(BROOD)
+  createdById String?
+  position    Int        @default(0)
+  source      TaskSource @default(manual)
+  values      Json       @default("{}") // keyed by FieldDef.key (or description/done when brood-less)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tab       Tab?           @relation(fields: [tabId], references: [id], onDelete: Cascade)
+  creator   User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignees TaskAssignee[]
 
   @@index([tabId])
+  @@index([scope])
+  @@index([createdById])
+}
+
+// Tagged people: extra visibility + notification targets for a task.
+model TaskAssignee {
+  id     String @id @default(cuid())
+  taskId String
+  userId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@index([taskId])
+}
+
+// In-app notification delivered to a recipient when a task is pushed to them.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String // recipient
+  actorName String? // who pushed it (denormalized label)
+  taskId    String?
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
 }
 
 // The include/exclude user list for a column's access rule. Ignored when the

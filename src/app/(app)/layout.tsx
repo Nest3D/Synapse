@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, getNavForUser, isAdmin } from "@/lib/access";
+import {
+  getCurrentUser,
+  getNavForUser,
+  getNotifications,
+  isAdmin,
+} from "@/lib/access";
 import { signOut } from "@/auth";
 import { Brand } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
+import { NotificationBell } from "@/components/notification-bell";
 
 // Every app route depends on the signed-in user + DB; never prerender.
 export const dynamic = "force-dynamic";
@@ -18,7 +24,10 @@ export default async function AppLayout({
   if (user.status !== "approved") redirect("/pending");
 
   const admin = isAdmin(user);
-  const { nickname } = await getNavForUser(user);
+  const [{ nickname }, notif] = await Promise.all([
+    getNavForUser(user),
+    getNotifications(user),
+  ]);
   const displayName = nickname ?? user.name ?? user.email;
 
   return (
@@ -38,6 +47,15 @@ export default async function AppLayout({
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            <NotificationBell
+              items={notif.items.map((n) => ({
+                id: n.id,
+                message: n.message,
+                read: n.read,
+                createdAt: n.createdAt,
+              }))}
+              unread={notif.unread}
+            />
             {admin && (
               <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-accent sm:block">
                 Admin

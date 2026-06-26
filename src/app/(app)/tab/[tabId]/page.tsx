@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import {
   getApprovedUser,
   getVisibleTabs,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/access";
 import { TabBar } from "@/components/tab-bar";
 import { TaskGrid } from "@/components/task-grid";
+import { AddTask, type TagUser } from "@/components/add-task";
 
 export default async function TabPage({
   params,
@@ -26,13 +28,23 @@ export default async function TabPage({
   ]);
   if (!access || !tab) notFound();
 
-  const [fields, tasks] = await Promise.all([
+  const [fields, tasks, users] = await Promise.all([
     getVisibleFields(user, tabId),
     getVisibleTasks(user, tabId),
+    prisma.user.findMany({
+      where: { status: "approved" },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, nickname: true, email: true },
+    }),
   ]);
 
   // Legacy person columns (tagging removed) are not rendered.
   const cols = fields.filter((f) => f.type !== "person");
+  const tagUsers: TagUser[] = users.map((u) => ({
+    id: u.id,
+    label: u.nickname ?? u.name ?? u.email ?? "Unknown",
+  }));
+  const broodOpts = tabs.map((t) => ({ id: t.id, name: t.name }));
 
   const rows = tasks.map((t) => ({
     id: t.id,
@@ -56,11 +68,11 @@ export default async function TabPage({
             {rows.length} {rows.length === 1 ? "task" : "tasks"}
           </p>
         </div>
+        <AddTask scope="BROOD" tabId={tabId} users={tagUsers} />
       </div>
 
       <div className="mt-6">
         <TaskGrid
-          tabId={tabId}
           fields={cols.map((f) => ({
             key: f.key,
             label: f.label,
@@ -69,6 +81,7 @@ export default async function TabPage({
           }))}
           rows={rows}
           canEdit
+          broods={broodOpts}
         />
       </div>
     </div>
