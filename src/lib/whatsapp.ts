@@ -52,15 +52,22 @@ export async function resolveTab(name: string) {
   });
 }
 
-/** Resolve a person token to an approved user (name / nickname / email-prefix). */
+/**
+ * Resolve a person token to an approved user by an EXACT match: nickname, full
+ * name, or email local-part. Exact (not fuzzy) matching is important so an
+ * ordinary first word doesn't accidentally route a task to a member — untagged
+ * messages should fall through to the sender's own board.
+ */
 export async function resolvePerson(token: string) {
+  const t = token.trim();
+  if (!t) return null;
   return prisma.user.findFirst({
     where: {
       status: "approved",
       OR: [
-        { name: { contains: token, mode: "insensitive" } },
-        { nickname: { contains: token, mode: "insensitive" } },
-        { email: { startsWith: token, mode: "insensitive" } },
+        { nickname: { equals: t, mode: "insensitive" } },
+        { name: { equals: t, mode: "insensitive" } },
+        { email: { startsWith: `${t.toLowerCase()}@` } },
       ],
     },
     select: { id: true, name: true, nickname: true, email: true },
