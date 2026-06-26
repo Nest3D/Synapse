@@ -44,6 +44,7 @@ export default async function AppLayout({
           </Link>
 
           <nav className="ml-2 flex flex-wrap items-center gap-1 text-sm">
+            <NavLink href="/board">Board</NavLink>
             <NavLink href="/done">Done</NavLink>
             <NavLink href="/archive">Archive</NavLink>
             {admin && <NavLink href="/admin/broods">Broods</NavLink>}

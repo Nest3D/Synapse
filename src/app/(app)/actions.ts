@@ -370,6 +370,20 @@ export async function setTaskAlert(taskId: string, alertAtISO: string) {
   refreshTaskSurfaces();
 }
 
+/** Set (or clear) a task's planned weekday on the board. 0=Sunday..6=Saturday. */
+export async function setTaskDay(taskId: string, day: number | null) {
+  const user = await requireUser();
+  if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
+  const d =
+    day == null ? null : Math.max(0, Math.min(6, Math.trunc(day)));
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { scheduledDay: d },
+  });
+  revalidatePath("/board");
+  refreshTaskSurfaces();
+}
+
 /** Admin-only: snooze a task's alerts by a day (re-arms both reminders). */
 export async function snoozeTask(taskId: string) {
   const user = await requireUser();

@@ -300,6 +300,7 @@ export type GridRow = {
   values: Record<string, unknown>;
   dueAt: Date | null;
   alertAt: Date | null;
+  scheduledDay: number | null;
 };
 
 export type GridSection = {
@@ -315,12 +316,14 @@ const toRow = (t: {
   values: unknown;
   dueAt: Date | null;
   alertAt: Date | null;
+  scheduledDay: number | null;
 }): GridRow => ({
   id: t.id,
   source: t.source,
   values: t.values as Record<string, unknown>,
   dueAt: t.dueAt,
   alertAt: t.alertAt,
+  scheduledDay: t.scheduledDay,
 });
 
 /**
@@ -503,6 +506,57 @@ export async function getNotifications(user: SessionUser) {
     prisma.notification.count({ where: { userId: user.id, read: false } }),
   ]);
   return { items, unread };
+}
+
+/* ---------------- Weekly board ---------------- */
+
+export type BoardTask = {
+  id: string;
+  title: string;
+  brood: string;
+  scheduledDay: number | null;
+};
+
+/** Not-done tasks the user can see, for the drag-and-drop weekly board. */
+export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
+  const tabs = await getVisibleTabs(user);
+  const accessible = new Set(tabs.map((t) => t.id));
+  const admin = isAdmin(user);
+
+  const tasks = await prisma.task.findMany({
+    where: { NOT: { values: { path: ["done"], equals: true } } },
+    include: {
+      tab: { select: { name: true } },
+      assignees: { select: { userId: true } },
+    },
+    orderBy: { position: "asc" },
+  });
+
+  const out: BoardTask[] = [];
+  for (const t of tasks) {
+    const see =
+      admin ||
+      t.createdById === user.id ||
+      t.assignees.some((a) => a.userId === user.id) ||
+      t.scope === "EVERYONE" ||
+      (t.scope === "BROOD" && !!t.tabId && accessible.has(t.tabId));
+    if (!see) continue;
+    const v = t.values as Record<string, unknown>;
+    out.push({
+      id: t.id,
+      title:
+        typeof v.description === "string" && v.description
+          ? v.description
+          : "—",
+      brood: t.tab
+        ? t.tab.name
+        : t.scope === "EVERYONE"
+          ? "All Tasks"
+          : "My Tasks",
+      scheduledDay: t.scheduledDay,
+    });
+  }
+  return out;
 }
 
 /* ---------------- Admin: permission configuration ---------------- */

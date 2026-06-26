@@ -40,7 +40,18 @@ export type Row = {
   values: Record<string, unknown>;
   dueAt?: string | Date | null;
   alertAt?: string | Date | null;
+  scheduledDay?: number | null;
 };
+
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 export type BroodOpt = { id: string; name: string };
 export type MemberOpt = { id: string; label: string };
@@ -146,17 +157,32 @@ export function TaskGrid({
                   transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                   className="group border-b border-border-soft last:border-0 hover:bg-surface-2/40"
                 >
-                  <td className="px-3 py-2 text-center align-middle">
-                    {row.source === "whatsapp" ? (
-                      <MessageCircle
-                        className="mx-auto h-3.5 w-3.5 text-accent"
-                        aria-label="From WhatsApp"
+                  <td className="px-3 py-2 align-middle">
+                    <div className="flex flex-col items-center gap-1">
+                      {row.source === "whatsapp" ? (
+                        <MessageCircle
+                          className="h-3.5 w-3.5 text-accent"
+                          aria-label="From WhatsApp"
+                        />
+                      ) : (
+                        <span className="font-mono text-[11px] text-faint">
+                          {i + 1}
+                        </span>
+                      )}
+                      <span
+                        title={
+                          row.scheduledDay != null
+                            ? `Planned: ${DAY_NAMES[row.scheduledDay]}`
+                            : "No planned day"
+                        }
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          row.scheduledDay != null
+                            ? "bg-[#3b82f6]"
+                            : "border border-border",
+                        )}
                       />
-                    ) : (
-                      <span className="font-mono text-[11px] text-faint">
-                        {i + 1}
-                      </span>
-                    )}
+                    </div>
                   </td>
 
                   {cols.map((f) => (

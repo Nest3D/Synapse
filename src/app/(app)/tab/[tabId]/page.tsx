@@ -55,6 +55,7 @@ export default async function TabPage({
     values: t.values as Record<string, unknown>,
     dueAt: t.dueAt,
     alertAt: t.alertAt,
+    scheduledDay: t.scheduledDay,
   }));
 
   return (
