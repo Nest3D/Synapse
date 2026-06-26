@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
-export function TabBar({
-  tabs,
-  activeId,
-}: {
-  tabs: { id: string; name: string }[];
-  activeId: string;
-}) {
+export function TabBar({ tabs }: { tabs: { id: string; name: string }[] }) {
+  const pathname = usePathname();
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border-soft bg-surface/40 p-1.5">
       {tabs.map((tab) => {
-        const active = tab.id === activeId;
+        const active = pathname === `/tab/${tab.id}`;
         return (
           <Link
             key={tab.id}

@@ -8,7 +8,6 @@ import {
   getVisibleFields,
   getTab,
 } from "@/lib/access";
-import { TabBar } from "@/components/tab-bar";
 import { TaskGrid } from "@/components/task-grid";
 import { AddTask, type TagUser } from "@/components/add-task";
 
@@ -54,12 +53,7 @@ export default async function TabPage({
 
   return (
     <div className="animate-rise">
-      <TabBar
-        tabs={tabs.map((t) => ({ id: t.id, name: t.name }))}
-        activeId={tabId}
-      />
-
-      <div className="mt-6 flex items-end justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">
             {tab.name}

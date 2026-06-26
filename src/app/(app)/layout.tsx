@@ -12,6 +12,7 @@ import { NavLink } from "@/components/nav-link";
 import { NotificationBell } from "@/components/notification-bell";
 import { UndoProvider } from "@/components/undo-context";
 import { UndoButton } from "@/components/undo-button";
+import { TabBar } from "@/components/tab-bar";
 
 // Every app route depends on the signed-in user + DB; never prerender.
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function AppLayout({
   if (user.status !== "approved") redirect("/pending");
 
   const admin = isAdmin(user);
-  const [{ nickname }, notif] = await Promise.all([
+  const [{ nickname, tabs }, notif] = await Promise.all([
     getNavForUser(user),
     getNotifications(user),
   ]);
@@ -98,6 +99,12 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
+
+      {tabs.length > 0 && (
+        <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">
+          <TabBar tabs={tabs.map((t) => ({ id: t.id, name: t.name }))} />
+        </div>
+      )}
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-8">
         {children}
