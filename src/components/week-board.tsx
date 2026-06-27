@@ -45,16 +45,12 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
   const [rects, setRects] = React.useState<Rect[]>(defaultRects);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const [boundsW, setBoundsW] = React.useState(0);
-  const [boundsH, setBoundsH] = React.useState(0);
 
-  // Track the canvas size so windows can't be dragged/resized past the edges.
+  // Track the canvas width so windows can't be dragged/resized past the sides.
   React.useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setBoundsW(el.clientWidth);
-      setBoundsH(el.clientHeight);
-    });
+    const ro = new ResizeObserver(() => setBoundsW(el.clientWidth));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -124,7 +120,14 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
         </div>
       </DropZone>
 
-      <div ref={canvasRef} className="relative" style={{ minHeight: 640 }}>
+      <div
+        ref={canvasRef}
+        className="relative"
+        style={{
+          minHeight:
+            Math.max(560, ...rects.map((r) => r.y + r.h)) + BOTTOM_GAP,
+        }}
+      >
         {DAYS.map((name, day) => {
           const dayTasks = tasks.filter((t) => t.scheduledDay === day);
           return (
@@ -134,7 +137,6 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
               count={dayTasks.length}
               rect={rects[day]}
               boundsW={boundsW}
-              boundsH={boundsH}
               onRectChange={(r) =>
                 persist(rects.map((x, i) => (i === day ? r : x)))
               }
@@ -209,7 +211,6 @@ function FloatingWindow({
   count,
   rect,
   boundsW,
-  boundsH,
   onRectChange,
   onDropTask,
   children,
@@ -218,7 +219,6 @@ function FloatingWindow({
   count: number;
   rect: Rect;
   boundsW: number;
-  boundsH: number;
   onRectChange: (r: Rect) => void;
   onDropTask: (taskId: string) => void;
   children: React.ReactNode;
@@ -237,20 +237,19 @@ function FloatingWindow({
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (mode === "move") {
+          // Left/top/right are bounded; the bottom grows the canvas instead.
           const maxX = boundsW > 0 ? boundsW - base.w - PAD : Infinity;
-          const maxY = boundsH > 0 ? boundsH - base.h - BOTTOM_GAP : Infinity;
           onRectChange({
             ...base,
             x: clamp(base.x + dx, PAD, Math.max(PAD, maxX)),
-            y: clamp(base.y + dy, PAD, Math.max(PAD, maxY)),
+            y: Math.max(PAD, base.y + dy),
           });
         } else {
           const maxW = boundsW > 0 ? boundsW - base.x - PAD : Infinity;
-          const maxH = boundsH > 0 ? boundsH - base.y - BOTTOM_GAP : Infinity;
           onRectChange({
             ...base,
             w: clamp(base.w + dx, 180, Math.max(180, maxW)),
-            h: clamp(base.h + dy, 120, Math.max(120, maxH)),
+            h: Math.max(120, base.h + dy),
           });
         }
       };
