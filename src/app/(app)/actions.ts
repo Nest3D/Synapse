@@ -25,6 +25,7 @@ function refreshTaskSurfaces(tabId?: string | null) {
   revalidatePath("/"); // All Tasks
   revalidatePath("/my-tasks");
   revalidatePath("/done");
+  revalidatePath("/board");
   revalidatePath("/", "layout"); // notification badge
   if (tabId) revalidatePath(`/tab/${tabId}`);
 }
@@ -357,15 +358,27 @@ export async function untagTask(taskId: string, userIds: string[]) {
   refreshTaskSurfaces(task?.tabId ?? null);
 }
 
-/** Set a task's reminder time (re-arms the due-soon email). */
-export async function setTaskAlert(taskId: string, alertAtISO: string) {
+/**
+ * Set a task's reminder time (re-arms the due-soon email). If a weekday is given
+ * (derived from the picked date in the user's local zone), the task is also
+ * planned on that day of the board.
+ */
+export async function setTaskAlert(
+  taskId: string,
+  alertAtISO: string,
+  weekday?: number,
+) {
   const user = await requireUser();
   if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
   const alertAt = new Date(alertAtISO);
   if (Number.isNaN(alertAt.getTime())) throw new Error("Invalid date");
+  const scheduledDay =
+    weekday == null
+      ? undefined
+      : Math.max(0, Math.min(6, Math.trunc(weekday)));
   await prisma.task.update({
     where: { id: taskId },
-    data: { alertAt, dueSoonAlertedAt: null },
+    data: { alertAt, dueSoonAlertedAt: null, scheduledDay },
   });
   refreshTaskSurfaces();
 }

@@ -553,8 +553,9 @@ function AlertControl({
 
   const save = () => {
     if (!val) return;
+    const d = new Date(val);
     start(() =>
-      setTaskAlert(taskId, new Date(val).toISOString()).then(() =>
+      setTaskAlert(taskId, d.toISOString(), d.getDay()).then(() =>
         setOpen(false),
       ),
     );
@@ -618,6 +619,15 @@ function AlertControl({
               onChange={(e) => setVal(e.target.value)}
               className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
             />
+            {val && (
+              <p className="mt-1 text-[11px] text-faint">
+                Plans for{" "}
+                <span className="text-[#3b82f6]">
+                  {DAY_NAMES[new Date(val).getDay()]}
+                </span>{" "}
+                on the board
+              </p>
+            )}
             <div className="mt-2 flex items-center justify-between gap-2">
               {isAdmin ? (
                 <button
