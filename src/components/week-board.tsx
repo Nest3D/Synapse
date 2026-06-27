@@ -3,6 +3,7 @@
 import * as React from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 import { setTaskDay } from "@/app/(app)/actions";
 
 type BoardTask = {
@@ -22,18 +23,20 @@ const DAYS = [
   "Friday",
   "Saturday",
 ];
-const STORAGE_KEY = "synapse-board-layout-v1";
-const PAD = 8; // keep windows this far inside the left/top/right edges
+const STORAGE_KEY = "synapse-board-layout-v2";
 const BOTTOM_GAP = 30; // space kept between a window and the canvas bottom
+const GRID = 20; // snap grid cell size (px)
+const snap = (v: number) => Math.round(v / GRID) * GRID;
 
 function defaultRects(): Rect[] {
   const W = 300;
   const H = 240;
-  const GAP = 16;
+  const GAP = 20;
+  const M = 20;
   const COLS = 4;
   return DAYS.map((_, i) => ({
-    x: PAD + (i % COLS) * (W + GAP),
-    y: PAD + Math.floor(i / COLS) * (H + GAP),
+    x: M + (i % COLS) * (W + GAP),
+    y: M + Math.floor(i / COLS) * (H + GAP),
     w: W,
     h: H,
   }));
@@ -94,6 +97,9 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
 
   return (
     <div>
+      <MobileBoard tasks={tasks} move={move} />
+
+      <div className="hidden md:block">
       <DropZone
         onDropTask={(id) => move(id, null)}
         className="mb-6 rounded-xl border border-dashed border-border bg-surface/40 p-3"
@@ -122,10 +128,13 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
 
       <div
         ref={canvasRef}
-        className="relative"
+        className="relative rounded-xl border border-border-soft"
         style={{
           minHeight:
             Math.max(560, ...rects.map((r) => r.y + r.h)) + BOTTOM_GAP,
+          backgroundImage:
+            "linear-gradient(to right, rgba(120,120,120,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(120,120,120,0.08) 1px, transparent 1px)",
+          backgroundSize: `${GRID}px ${GRID}px`,
         }}
       >
         {DAYS.map((name, day) => {
@@ -153,6 +162,78 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
           );
         })}
       </div>
+      </div>
+    </div>
+  );
+}
+
+/** Touch-friendly stacked board for small screens: tap a task's day to move it. */
+function MobileBoard({
+  tasks,
+  move,
+}: {
+  tasks: BoardTask[];
+  move: (taskId: string, day: number | null) => void;
+}) {
+  const groups: { key: string; label: string; day: number | null }[] = [
+    { key: "none", label: "Unscheduled", day: null },
+    ...DAYS.map((n, i) => ({ key: String(i), label: n, day: i })),
+  ];
+  return (
+    <div className="flex flex-col gap-4 md:hidden">
+      {groups.map((g) => {
+        const items = tasks.filter((t) => (t.scheduledDay ?? null) === g.day);
+        return (
+          <div
+            key={g.key}
+            className="overflow-hidden rounded-xl border border-border bg-surface card-float"
+          >
+            <div className="flex items-center gap-2 border-b border-border-soft bg-surface-2/60 px-3 py-2">
+              <span className="font-display text-sm font-semibold text-ink">
+                {g.label}
+              </span>
+              <span className="ml-auto text-[11px] text-faint">
+                {items.length}
+              </span>
+            </div>
+            <div className="space-y-1.5 p-2">
+              {items.length === 0 ? (
+                <p className="px-1 py-2 text-center text-xs text-faint">
+                  No tasks
+                </p>
+              ) : (
+                items.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-medium text-ink">
+                        {t.title}
+                      </div>
+                      <div className="truncate text-[10px] text-faint">
+                        {t.brood}
+                      </div>
+                    </div>
+                    <Select
+                      value={t.scheduledDay == null ? "" : String(t.scheduledDay)}
+                      ariaLabel="Move to day"
+                      variant="cell"
+                      align="right"
+                      className="w-28 shrink-0"
+                      options={[
+                        { value: "", label: "Unscheduled" },
+                        ...DAYS.map((n, i) => ({ value: String(i), label: n })),
+                      ]}
+                      onChange={(v) => move(t.id, v === "" ? null : Number(v))}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -237,19 +318,19 @@ function FloatingWindow({
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (mode === "move") {
-          // Left/top/right are bounded; the bottom grows the canvas instead.
-          const maxX = boundsW > 0 ? boundsW - base.w - PAD : Infinity;
+          // Snap to the grid; left/top/right bounded, bottom grows the canvas.
+          const maxX = boundsW > 0 ? boundsW - base.w : Infinity;
           onRectChange({
             ...base,
-            x: clamp(base.x + dx, PAD, Math.max(PAD, maxX)),
-            y: Math.max(PAD, base.y + dy),
+            x: clamp(snap(base.x + dx), 0, Math.max(0, maxX)),
+            y: Math.max(0, snap(base.y + dy)),
           });
         } else {
-          const maxW = boundsW > 0 ? boundsW - base.x - PAD : Infinity;
+          const maxW = boundsW > 0 ? boundsW - base.x : Infinity;
           onRectChange({
             ...base,
-            w: clamp(base.w + dx, 180, Math.max(180, maxW)),
-            h: Math.max(120, base.h + dy),
+            w: clamp(snap(base.w + dx), 180, Math.max(180, maxW)),
+            h: Math.max(120, snap(base.h + dy)),
           });
         }
       };

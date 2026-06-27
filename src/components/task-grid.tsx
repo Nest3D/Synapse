@@ -201,7 +201,7 @@ export function TaskGrid({
 
                   {showActions && (
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         {canEdit && (
                           <AlertControl
                             taskId={row.id}

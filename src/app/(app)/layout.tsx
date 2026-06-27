@@ -38,7 +38,7 @@ export default async function AppLayout({
     <UndoProvider>
     <div className="flex min-h-screen flex-col">
       <header className="glass sticky top-0 z-30 border-b border-border-soft">
-        <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-6 px-6">
+        <div className="mx-auto flex min-h-16 w-full max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 sm:gap-x-6 sm:px-6">
           <Link href="/" className="shrink-0">
             <Brand size="md" />
           </Link>
@@ -100,7 +100,7 @@ export default async function AppLayout({
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">
+      <div className="mx-auto w-full max-w-[1400px] px-4 pt-6 sm:px-6">
         <TabBar
           items={[
             { href: "/", label: "All Tasks" },
@@ -111,7 +111,7 @@ export default async function AppLayout({
         />
       </div>
 
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 sm:px-6">
         {children}
       </main>
     </div>
