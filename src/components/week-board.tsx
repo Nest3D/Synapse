@@ -23,7 +23,8 @@ const DAYS = [
   "Saturday",
 ];
 const STORAGE_KEY = "synapse-board-layout-v1";
-const PAD = 8; // keep windows this far inside the canvas edges
+const PAD = 8; // keep windows this far inside the left/top/right edges
+const BOTTOM_GAP = 30; // space kept between a window and the canvas bottom
 
 function defaultRects(): Rect[] {
   const W = 300;
@@ -44,12 +45,16 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
   const [rects, setRects] = React.useState<Rect[]>(defaultRects);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const [boundsW, setBoundsW] = React.useState(0);
+  const [boundsH, setBoundsH] = React.useState(0);
 
-  // Track the canvas width so windows can't be dragged/resized past the edges.
+  // Track the canvas size so windows can't be dragged/resized past the edges.
   React.useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setBoundsW(el.clientWidth));
+    const ro = new ResizeObserver(() => {
+      setBoundsW(el.clientWidth);
+      setBoundsH(el.clientHeight);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -119,7 +124,7 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
         </div>
       </DropZone>
 
-      <div ref={canvasRef} className="relative" style={{ minHeight: 560 }}>
+      <div ref={canvasRef} className="relative" style={{ minHeight: 640 }}>
         {DAYS.map((name, day) => {
           const dayTasks = tasks.filter((t) => t.scheduledDay === day);
           return (
@@ -129,6 +134,7 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
               count={dayTasks.length}
               rect={rects[day]}
               boundsW={boundsW}
+              boundsH={boundsH}
               onRectChange={(r) =>
                 persist(rects.map((x, i) => (i === day ? r : x)))
               }
@@ -203,6 +209,7 @@ function FloatingWindow({
   count,
   rect,
   boundsW,
+  boundsH,
   onRectChange,
   onDropTask,
   children,
@@ -211,6 +218,7 @@ function FloatingWindow({
   count: number;
   rect: Rect;
   boundsW: number;
+  boundsH: number;
   onRectChange: (r: Rect) => void;
   onDropTask: (taskId: string) => void;
   children: React.ReactNode;
@@ -230,17 +238,19 @@ function FloatingWindow({
         const dy = ev.clientY - startY;
         if (mode === "move") {
           const maxX = boundsW > 0 ? boundsW - base.w - PAD : Infinity;
+          const maxY = boundsH > 0 ? boundsH - base.h - BOTTOM_GAP : Infinity;
           onRectChange({
             ...base,
             x: clamp(base.x + dx, PAD, Math.max(PAD, maxX)),
-            y: Math.max(PAD, base.y + dy),
+            y: clamp(base.y + dy, PAD, Math.max(PAD, maxY)),
           });
         } else {
           const maxW = boundsW > 0 ? boundsW - base.x - PAD : Infinity;
+          const maxH = boundsH > 0 ? boundsH - base.y - BOTTOM_GAP : Infinity;
           onRectChange({
             ...base,
             w: clamp(base.w + dx, 180, Math.max(180, maxW)),
-            h: Math.max(120, base.h + dy),
+            h: clamp(base.h + dy, 120, Math.max(120, maxH)),
           });
         }
       };
