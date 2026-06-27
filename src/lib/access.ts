@@ -431,11 +431,34 @@ export type LogRow = {
   kind: "task" | "brood";
 };
 
+/**
+ * Whether a task belongs in a user's personal aggregate views (Board, Done, My
+ * Tasks, All Tasks): created by them, tagged to them, EVERYONE-scope, or in a
+ * brood they can access. NOT a blanket admin-sees-all — admins already see every
+ * shared brood via `accessible`, but other people's PRIVATE tasks stay private.
+ */
+function aggregateVisible(
+  user: SessionUser,
+  t: {
+    createdById: string | null;
+    scope: "BROOD" | "EVERYONE" | "PRIVATE";
+    tabId: string | null;
+    assignees: { userId: string }[];
+  },
+  accessible: Set<string>,
+): boolean {
+  return (
+    t.createdById === user.id ||
+    t.assignees.some((a) => a.userId === user.id) ||
+    t.scope === "EVERYONE" ||
+    (t.scope === "BROOD" && !!t.tabId && accessible.has(t.tabId))
+  );
+}
+
 /** Completed tasks the user can see, as log rows (for the Done page). */
 export async function getDoneTasks(user: SessionUser): Promise<LogRow[]> {
   const tabs = await getVisibleTabs(user);
   const accessible = new Set(tabs.map((t) => t.id));
-  const admin = isAdmin(user);
 
   const done = await prisma.task.findMany({
     where: { values: { path: ["done"], equals: true } },
@@ -459,13 +482,7 @@ export async function getDoneTasks(user: SessionUser): Promise<LogRow[]> {
 
   const rows: LogRow[] = [];
   for (const t of done) {
-    const see =
-      admin ||
-      t.createdById === user.id ||
-      t.assignees.some((a) => a.userId === user.id) ||
-      t.scope === "EVERYONE" ||
-      (t.scope === "BROOD" && !!t.tabId && accessible.has(t.tabId));
-    if (!see) continue;
+    if (!aggregateVisible(user, t, accessible)) continue;
 
     const v = t.values as Record<string, unknown>;
     const members = Array.from(
@@ -521,7 +538,6 @@ export type BoardTask = {
 export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
   const tabs = await getVisibleTabs(user);
   const accessible = new Set(tabs.map((t) => t.id));
-  const admin = isAdmin(user);
 
   const tasks = await prisma.task.findMany({
     where: { NOT: { values: { path: ["done"], equals: true } } },
@@ -534,13 +550,7 @@ export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
 
   const out: BoardTask[] = [];
   for (const t of tasks) {
-    const see =
-      admin ||
-      t.createdById === user.id ||
-      t.assignees.some((a) => a.userId === user.id) ||
-      t.scope === "EVERYONE" ||
-      (t.scope === "BROOD" && !!t.tabId && accessible.has(t.tabId));
-    if (!see) continue;
+    if (!aggregateVisible(user, t, accessible)) continue;
     const v = t.values as Record<string, unknown>;
     out.push({
       id: t.id,
