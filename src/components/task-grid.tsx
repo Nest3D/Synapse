@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trash2,
@@ -485,17 +486,52 @@ function AlertControl({
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, start] = React.useTransition();
-  const ref = React.useRef<HTMLDivElement>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = React.useState<{
+    top: number;
+    left: number;
+    openUp: boolean;
+  } | null>(null);
+
+  const place = React.useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const W = 240;
+    const estH = 210;
+    const spaceBelow = window.innerHeight - r.bottom;
+    const openUp = spaceBelow < estH && r.top > spaceBelow;
+    setCoords({
+      top: openUp ? r.top - 6 : r.bottom + 6,
+      left: Math.max(8, Math.min(window.innerWidth - W - 8, r.right - W)),
+      openUp,
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
+    place();
+    const reposition = () => place();
+    const onPointer = (e: MouseEvent) => {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
+      }
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open, place]);
 
   const due = dueAt ? new Date(dueAt) : null;
   const dueMs = due ? due.getTime() : null;
@@ -527,8 +563,9 @@ function AlertControl({
     start(() => snoozeTask(taskId).then(() => setOpen(false)));
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Task alert"
@@ -543,49 +580,65 @@ function AlertControl({
         </span>
       </button>
 
-      {open && (
-        <div className="glass card-float absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-border p-3 text-left">
-          <p className="text-xs text-muted">
-            {due ? (
-              <>
-                Due{" "}
-                <span className={overdue ? "text-danger" : "text-ink"}>
-                  {fmt(due)}
-                </span>
-              </>
-            ) : (
-              "No due time"
-            )}
-          </p>
-          <label className="mt-2 block font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
-            Alert time
-          </label>
-          <input
-            type="datetime-local"
-            value={val}
-            onChange={(e) => setVal(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={snooze}
-                disabled={pending}
-                className="text-[11px] text-faint transition-colors hover:text-ink"
-              >
-                Snooze a day
-              </button>
-            ) : (
-              <span />
-            )}
-            <Button size="sm" disabled={pending || !val} onClick={save}>
-              Set
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+      {open &&
+        coords &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: coords.openUp ? undefined : coords.top,
+              bottom: coords.openUp
+                ? window.innerHeight - coords.top
+                : undefined,
+              left: coords.left,
+              width: 240,
+            }}
+            className="glass card-float z-[120] rounded-xl border border-border p-3 text-left shadow-xl"
+          >
+            <p className="text-xs text-muted">
+              {due ? (
+                <>
+                  Due{" "}
+                  <span className={overdue ? "text-danger" : "text-ink"}>
+                    {fmt(due)}
+                  </span>
+                </>
+              ) : (
+                "No due time"
+              )}
+            </p>
+            <label className="mt-2 block font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
+              Alert time
+            </label>
+            <input
+              type="datetime-local"
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={snooze}
+                  disabled={pending}
+                  className="text-[11px] text-faint transition-colors hover:text-ink"
+                >
+                  Snooze a day
+                </button>
+              ) : (
+                <span />
+              )}
+              <Button size="sm" disabled={pending || !val} onClick={save}>
+                Set
+              </Button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
