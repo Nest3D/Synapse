@@ -11,7 +11,7 @@ export default async function BoardPage() {
   const tasks = await getBoardTasks(user);
 
   return (
-    <div className="animate-rise">
+    <div className="animate-rise pb-[30px]">
       <header className="mb-6">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-faint">
           Plan
