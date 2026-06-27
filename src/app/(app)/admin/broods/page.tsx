@@ -15,7 +15,7 @@ export default async function BroodsAdminPage() {
 
   const [tabs, users, accessConfig, aliases, logs] = await Promise.all([
     prisma.tab.findMany({
-      where: { ownerId: null },
+      where: { ownerId: null, archivedAt: null },
       orderBy: { order: "asc" },
       include: { fields: { orderBy: { order: "asc" } } },
     }),
