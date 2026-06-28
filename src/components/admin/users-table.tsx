@@ -2,11 +2,25 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pencil, Phone } from "lucide-react";
+import { Pencil, Phone, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { approveUser, removeUser, setRole } from "@/app/(app)/admin/actions";
+import { Select } from "@/components/ui/select";
+import {
+  memberSeesColumn,
+  applyMemberColumnAccess,
+  type AccessBrood,
+} from "@/lib/brood-access";
+import {
+  approveUser,
+  removeUser,
+  setRole,
+  setBroodMembership,
+  setColumnMode,
+  setMemberColumnAccess,
+} from "@/app/(app)/admin/actions";
 import { setNickname, setPhone } from "@/app/(app)/people/actions";
 import { cn } from "@/lib/utils";
+import type { FieldAccessMode } from "@prisma/client";
 
 type U = {
   id: string;
@@ -20,16 +34,27 @@ type U = {
   joined: boolean;
 };
 
+type Mode = FieldAccessMode;
+const MODE_LABEL: Record<Mode, string> = {
+  ALL: "Brood Member",
+  INCLUDE: "Only these",
+  EXCLUDE: "Everyone except",
+};
+
 export function UsersTable({
   users,
   currentUserId,
   isAdmin,
+  accessBroods,
 }: {
   users: U[];
   currentUserId: string;
   isAdmin: boolean;
+  accessBroods: AccessBrood[];
 }) {
   const [pending, start] = React.useTransition();
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const colSpan = isAdmin ? 4 : 3;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
@@ -46,15 +71,32 @@ export function UsersTable({
           <AnimatePresence initial={false}>
             {users.map((u) => {
               const self = u.id === currentUserId;
+              const expanded = openId === u.id;
               return (
+                <React.Fragment key={u.id}>
                 <motion.tr
-                  key={u.id}
                   layout
                   exit={{ opacity: 0, height: 0 }}
                   className="border-b border-border-soft last:border-0 hover:bg-surface-2/30"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setOpenId(expanded ? null : u.id)}
+                        aria-label={
+                          expanded ? "Collapse access" : "Expand access"
+                        }
+                        className="shrink-0 text-faint transition-colors hover:text-ink"
+                      >
+                        <ChevronDown
+                          className="h-4 w-4 transition-transform"
+                          style={{
+                            transform: expanded
+                              ? "rotate(0deg)"
+                              : "rotate(-90deg)",
+                          }}
+                        />
+                      </button>
                       {u.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -185,11 +227,174 @@ export function UsersTable({
                     </td>
                   )}
                 </motion.tr>
+                {expanded && (
+                  <tr className="border-b border-border-soft last:border-0 bg-surface-2/20">
+                    <td colSpan={colSpan} className="px-4 py-3">
+                      <MemberAccess userId={u.id} broods={accessBroods} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </AnimatePresence>
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Per-member access editor: level 1 is brood membership (the gate), level 2 is
+ * each column's mode (brood-wide) + whether THIS member sees it. Optimistic:
+ * edits update a local mirror immediately and fire a server action; the mirror
+ * re-seeds when revalidated props arrive.
+ */
+function MemberAccess({
+  userId,
+  broods,
+}: {
+  userId: string;
+  broods: AccessBrood[];
+}) {
+  const [model, setModel] = React.useState(broods);
+  const sig = JSON.stringify(broods);
+  const [prevSig, setPrevSig] = React.useState(sig);
+  if (sig !== prevSig) {
+    setPrevSig(sig);
+    setModel(broods);
+  }
+  const [, start] = React.useTransition();
+
+  const setMember = (tabId: string, isMember: boolean) => {
+    setModel((m) =>
+      m.map((b) =>
+        b.id !== tabId
+          ? b
+          : {
+              ...b,
+              members: isMember
+                ? [...b.members.filter((id) => id !== userId), userId]
+                : b.members.filter((id) => id !== userId),
+            },
+      ),
+    );
+    start(() => setBroodMembership(tabId, userId, isMember).then(() => {}));
+  };
+
+  const setMode = (tabId: string, fieldId: string, mode: Mode) => {
+    setModel((m) =>
+      m.map((b) =>
+        b.id !== tabId
+          ? b
+          : {
+              ...b,
+              fields: b.fields.map((f) =>
+                f.id !== fieldId
+                  ? f
+                  : {
+                      ...f,
+                      accessMode: mode,
+                      userIds: mode === "ALL" ? [] : f.userIds,
+                    },
+              ),
+            },
+      ),
+    );
+    start(() => setColumnMode(fieldId, mode).then(() => {}));
+  };
+
+  const setSees = (tabId: string, fieldId: string, canView: boolean) => {
+    setModel((m) =>
+      m.map((b) =>
+        b.id !== tabId
+          ? b
+          : {
+              ...b,
+              fields: b.fields.map((f) =>
+                f.id !== fieldId
+                  ? f
+                  : {
+                      ...f,
+                      ...applyMemberColumnAccess(
+                        f.accessMode,
+                        f.userIds,
+                        userId,
+                        canView,
+                      ),
+                    },
+              ),
+            },
+      ),
+    );
+    start(() => setMemberColumnAccess(fieldId, userId, canView).then(() => {}));
+  };
+
+  if (model.length === 0)
+    return <p className="text-xs text-faint">No shared broods.</p>;
+
+  return (
+    <div className="space-y-3">
+      {model.map((b) => {
+        const isMember = b.members.includes(userId);
+        return (
+          <div
+            key={b.id}
+            className="rounded-lg border border-border-soft bg-surface p-3"
+          >
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={isMember}
+                onChange={(e) => setMember(b.id, e.target.checked)}
+                className="h-4 w-4 accent-accent"
+              />
+              {b.name}
+              {!isMember && (
+                <span className="text-xs font-normal text-faint">
+                  not a member
+                </span>
+              )}
+            </label>
+
+            {isMember && b.fields.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {b.fields.map((f) => {
+                  const sees = memberSeesColumn(f.accessMode, f.userIds, userId);
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex flex-wrap items-center gap-3"
+                    >
+                      <span className="min-w-[7rem] flex-1 text-sm text-ink">
+                        {f.label}
+                      </span>
+                      <Select
+                        value={f.accessMode}
+                        onChange={(v) => setMode(b.id, f.id, v as Mode)}
+                        ariaLabel="Column visibility mode (applies brood-wide)"
+                        className="w-40"
+                        options={(["ALL", "INCLUDE", "EXCLUDE"] as const).map(
+                          (mm) => ({ value: mm, label: MODE_LABEL[mm] }),
+                        )}
+                      />
+                      <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+                        <input
+                          type="checkbox"
+                          checked={sees}
+                          onChange={(e) => setSees(b.id, f.id, e.target.checked)}
+                          className="h-4 w-4 accent-accent"
+                        />
+                        sees
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

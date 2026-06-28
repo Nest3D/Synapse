@@ -6,7 +6,7 @@ import {
   getBroodAccessConfig,
 } from "@/lib/access";
 import { AdminSections } from "@/components/admin/admin-sections";
-import type { UserOpt } from "@/components/admin/brood-access-panel";
+import type { UserOpt } from "@/lib/brood-access";
 
 export default async function BroodsAdminPage() {
   const me = await getCurrentUser();

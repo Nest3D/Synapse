@@ -5,11 +5,7 @@ import { cn } from "@/lib/utils";
 import { TabsManager } from "@/components/admin/tabs-manager";
 import { UsersTable } from "@/components/admin/users-table";
 import { InviteForm } from "@/components/admin/invite-form";
-import {
-  BroodAccessPanel,
-  type Brood,
-  type UserOpt,
-} from "@/components/admin/brood-access-panel";
+import type { AccessBrood, UserOpt } from "@/lib/brood-access";
 import {
   WhatsAppAliases,
   type AliasRow,
@@ -37,7 +33,6 @@ type UserRow = {
 const SECTIONS = [
   { key: "broods", label: "Broods" },
   { key: "people", label: "People" },
-  { key: "access", label: "Access" },
   { key: "whatsapp", label: "WhatsApp" },
 ] as const;
 
@@ -55,7 +50,7 @@ export function AdminSections({
   broods: ManageBrood[];
   users: UserRow[];
   currentUserId: string;
-  accessBroods: Brood[];
+  accessBroods: AccessBrood[];
   accessUsers: UserOpt[];
   waAliases: AliasRow[];
   waLogs: LogRow[];
@@ -104,12 +99,13 @@ export function AdminSections({
       {section === "people" && (
         <>
           <InviteForm />
-          <UsersTable users={users} currentUserId={currentUserId} isAdmin />
+          <UsersTable
+            users={users}
+            currentUserId={currentUserId}
+            isAdmin
+            accessBroods={accessBroods}
+          />
         </>
-      )}
-
-      {section === "access" && (
-        <BroodAccessPanel broods={accessBroods} users={accessUsers} />
       )}
 
       {section === "whatsapp" && (
