@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Plus, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { setTaskDay } from "@/app/(app)/actions";
+import { setTaskDay, createTask } from "@/app/(app)/actions";
 
 type BoardTask = {
   id: string;
@@ -24,6 +24,7 @@ const DAYS = [
   "Saturday",
 ];
 const STORAGE_KEY = "synapse-board-layout-v2";
+const HIDDEN_KEY = "synapse-board-hidden-v1";
 const BOTTOM_GAP = 30; // space kept between a window and the canvas bottom
 const GRID = 20; // snap grid cell size (px)
 const snap = (v: number) => Math.round(v / GRID) * GRID;
@@ -86,6 +87,30 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
     }
   };
 
+  const [hidden, setHidden] = React.useState<boolean[]>(() =>
+    DAYS.map(() => false),
+  );
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (Array.isArray(parsed) && parsed.length === 7) setHidden(parsed.map(Boolean));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleHidden = (day: number) =>
+    setHidden((h) => {
+      const next = h.map((v, i) => (i === day ? !v : v));
+      try {
+        localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
   const move = (taskId: string, day: number | null) => {
     setTasks((ts) =>
       ts.map((t) => (t.id === taskId ? { ...t, scheduledDay: day } : t)),
@@ -97,7 +122,28 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
 
   return (
     <div>
-      <MobileBoard tasks={tasks} move={move} />
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 font-mono text-[11px] uppercase tracking-[0.2em] text-faint">
+          Days
+        </span>
+        {DAYS.map((n, i) => (
+          <button
+            key={i}
+            onClick={() => toggleHidden(i)}
+            title={hidden[i] ? `Show ${n}` : `Hide ${n}`}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-xs transition-colors",
+              hidden[i]
+                ? "border-border text-faint line-through hover:text-ink"
+                : "border-accent/40 bg-accent/10 text-accent",
+            )}
+          >
+            {n.slice(0, 3)}
+          </button>
+        ))}
+      </div>
+
+      <MobileBoard tasks={tasks} move={move} hidden={hidden} />
 
       <div className="hidden md:block">
       <DropZone
@@ -131,13 +177,17 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
         className="relative rounded-xl border border-border-soft"
         style={{
           minHeight:
-            Math.max(560, ...rects.map((r) => r.y + r.h)) + BOTTOM_GAP,
+            Math.max(
+              560,
+              ...rects.filter((_, i) => !hidden[i]).map((r) => r.y + r.h),
+            ) + BOTTOM_GAP,
           backgroundImage:
             "linear-gradient(to right, rgba(120,120,120,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(120,120,120,0.08) 1px, transparent 1px)",
           backgroundSize: `${GRID}px ${GRID}px`,
         }}
       >
         {DAYS.map((name, day) => {
+          if (hidden[day]) return null;
           const dayTasks = tasks.filter((t) => t.scheduledDay === day);
           return (
             <FloatingWindow
@@ -150,6 +200,8 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
                 persist(rects.map((x, i) => (i === day ? r : x)))
               }
               onDropTask={(id) => move(id, day)}
+              onHide={() => toggleHidden(day)}
+              footer={<QuickAdd day={day} />}
             >
               {dayTasks.length === 0 ? (
                 <p className="px-1 py-6 text-center text-xs text-faint">
@@ -171,17 +223,20 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
 function MobileBoard({
   tasks,
   move,
+  hidden,
 }: {
   tasks: BoardTask[];
   move: (taskId: string, day: number | null) => void;
+  hidden: boolean[];
 }) {
   const groups: { key: string; label: string; day: number | null }[] = [
     { key: "none", label: "Unscheduled", day: null },
     ...DAYS.map((n, i) => ({ key: String(i), label: n, day: i })),
   ];
+  const visible = groups.filter((g) => g.day == null || !hidden[g.day]);
   return (
     <div className="flex flex-col gap-4 md:hidden">
-      {groups.map((g) => {
+      {visible.map((g) => {
         const items = tasks.filter((t) => (t.scheduledDay ?? null) === g.day);
         return (
           <div
@@ -231,9 +286,41 @@ function MobileBoard({
                 ))
               )}
             </div>
+            <div className="border-t border-border-soft">
+              <QuickAdd day={g.day} />
+            </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Inline add: creates a personal task already planned on this day (or none). */
+function QuickAdd({ day }: { day: number | null }) {
+  const [text, setText] = React.useState("");
+  const [pending, start] = React.useTransition();
+  const submit = () => {
+    const t = text.trim();
+    if (!t) return;
+    start(async () => {
+      await createTask({ text: t, scope: "PRIVATE", scheduledDay: day });
+      setText("");
+    });
+  };
+  return (
+    <div className="flex items-center gap-1 px-2 py-1.5">
+      <Plus className="h-3.5 w-3.5 shrink-0 text-faint" />
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        disabled={pending}
+        placeholder="Add task"
+        className="w-full rounded-md bg-transparent px-1 py-0.5 text-xs text-ink outline-none placeholder:text-faint focus:bg-surface-2 disabled:opacity-60"
+      />
     </div>
   );
 }
@@ -294,7 +381,9 @@ function FloatingWindow({
   boundsW,
   onRectChange,
   onDropTask,
+  onHide,
   children,
+  footer,
 }: {
   title: string;
   count: number;
@@ -302,7 +391,9 @@ function FloatingWindow({
   boundsW: number;
   onRectChange: (r: Rect) => void;
   onDropTask: (taskId: string) => void;
+  onHide: () => void;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   const [over, setOver] = React.useState(false);
   const clamp = (v: number, min: number, max: number) =>
@@ -370,9 +461,23 @@ function FloatingWindow({
           {title}
         </span>
         <span className="ml-auto text-[11px] text-faint">{count}</span>
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onHide}
+          aria-label={`Hide ${title}`}
+          title="Hide"
+          className="rounded p-0.5 text-faint transition-colors hover:bg-surface hover:text-ink"
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-auto p-2">{children}</div>
+
+      {footer && (
+        <div className="border-t border-border-soft">{footer}</div>
+      )}
 
       <div
         onPointerDown={startDrag("resize")}

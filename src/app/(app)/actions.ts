@@ -36,6 +36,7 @@ export async function createTask(input: {
   scope: Scope;
   tabId?: string | null;
   taggedUserIds?: string[];
+  scheduledDay?: number | null;
 }) {
   const user = await requireUser();
   const text = input.text.trim();
@@ -84,6 +85,10 @@ export async function createTask(input: {
       position: (last?.position ?? 0) + 1,
       values: { [descKey]: text, done: false } as Prisma.InputJsonObject,
       assignees: { create: validTagged.map((userId) => ({ userId })) },
+      scheduledDay:
+        input.scheduledDay == null
+          ? null
+          : Math.max(0, Math.min(6, Math.trunc(input.scheduledDay))),
       ...defaultDeadlines(),
     },
   });
