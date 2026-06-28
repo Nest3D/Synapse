@@ -28,6 +28,24 @@ export function TabsManager({ tabs }: { tabs: Tab[] }) {
     tabs[0]?.id ?? null,
   );
 
+  React.useEffect(() => {
+    try {
+      const v = localStorage.getItem("synapse-broods-open");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (v != null) setOpenId(v === "" ? null : v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setOpen = (id: string | null) => {
+    setOpenId(id);
+    try {
+      localStorage.setItem("synapse-broods-open", id ?? "");
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className="space-y-6">
       <form
@@ -37,7 +55,7 @@ export function TabsManager({ tabs }: { tabs: Tab[] }) {
           start(() =>
             createTab(newName.trim()).then((id) => {
               setNewName("");
-              setOpenId(id);
+              setOpen(id);
             }),
           );
         }}
@@ -66,7 +84,7 @@ export function TabsManager({ tabs }: { tabs: Tab[] }) {
             key={tab.id}
             tab={tab}
             open={openId === tab.id}
-            onToggle={() => setOpenId(openId === tab.id ? null : tab.id)}
+            onToggle={() => setOpen(openId === tab.id ? null : tab.id)}
             pending={pending}
             start={start}
           />

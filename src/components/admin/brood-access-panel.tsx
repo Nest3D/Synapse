@@ -42,6 +42,24 @@ export function BroodAccessPanel({
     broods[0]?.id ?? null,
   );
 
+  React.useEffect(() => {
+    try {
+      const v = localStorage.getItem("synapse-access-open");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (v != null) setOpenId(v === "" ? null : v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setOpen = (id: string | null) => {
+    setOpenId(id);
+    try {
+      localStorage.setItem("synapse-access-open", id ?? "");
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <section className="mt-10">
       <div className="mb-4">
@@ -66,7 +84,7 @@ export function BroodAccessPanel({
               className="overflow-hidden rounded-xl border border-border bg-surface card-float"
             >
               <button
-                onClick={() => setOpenId(openId === b.id ? null : b.id)}
+                onClick={() => setOpen(openId === b.id ? null : b.id)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left"
               >
                 <ChevronDown

@@ -62,13 +62,31 @@ export function AdminSections({
 }) {
   const [section, setSection] = React.useState<SectionKey>("broods");
 
+  React.useEffect(() => {
+    try {
+      const s = localStorage.getItem("synapse-admin-section");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (s && SECTIONS.some((x) => x.key === s)) setSection(s as SectionKey);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const choose = (key: SectionKey) => {
+    setSection(key);
+    try {
+      localStorage.setItem("synapse-admin-section", key);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div>
       <div className="mb-6 flex w-fit gap-1 rounded-xl border border-border-soft bg-surface/40 p-1.5">
         {SECTIONS.map((s) => (
           <button
             key={s.key}
-            onClick={() => setSection(s.key)}
+            onClick={() => choose(s.key)}
             className={cn(
               "rounded-lg px-4 py-1.5 text-sm font-medium transition-colors",
               section === s.key
