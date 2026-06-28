@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { GripVertical, Plus, EyeOff } from "lucide-react";
+import { GripVertical, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { setTaskDay, createTask } from "@/app/(app)/actions";
+import { AddTask, type TagUser } from "@/components/add-task";
+import { setTaskDay } from "@/app/(app)/actions";
 
 type BoardTask = {
   id: string;
@@ -43,7 +44,13 @@ function defaultRects(): Rect[] {
   }));
 }
 
-export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
+export function WeekBoard({
+  initialTasks,
+  members,
+}: {
+  initialTasks: BoardTask[];
+  members: TagUser[];
+}) {
   const [tasks, setTasks] = React.useState(initialTasks);
   const [, start] = React.useTransition();
   const [rects, setRects] = React.useState<Rect[]>(defaultRects);
@@ -143,7 +150,12 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
         ))}
       </div>
 
-      <MobileBoard tasks={tasks} move={move} hidden={hidden} />
+      <MobileBoard
+        tasks={tasks}
+        move={move}
+        hidden={hidden}
+        members={members}
+      />
 
       <div className="hidden md:block">
       <DropZone
@@ -201,7 +213,14 @@ export function WeekBoard({ initialTasks }: { initialTasks: BoardTask[] }) {
               }
               onDropTask={(id) => move(id, day)}
               onHide={() => toggleHidden(day)}
-              footer={<QuickAdd day={day} />}
+              footer={
+                <AddTask
+                  scope="PRIVATE"
+                  scheduledDay={day}
+                  users={members}
+                  compact
+                />
+              }
             >
               {dayTasks.length === 0 ? (
                 <p className="px-1 py-6 text-center text-xs text-faint">
@@ -224,10 +243,12 @@ function MobileBoard({
   tasks,
   move,
   hidden,
+  members,
 }: {
   tasks: BoardTask[];
   move: (taskId: string, day: number | null) => void;
   hidden: boolean[];
+  members: TagUser[];
 }) {
   const groups: { key: string; label: string; day: number | null }[] = [
     { key: "none", label: "Unscheduled", day: null },
@@ -287,40 +308,16 @@ function MobileBoard({
               )}
             </div>
             <div className="border-t border-border-soft">
-              <QuickAdd day={g.day} />
+              <AddTask
+                scope="PRIVATE"
+                scheduledDay={g.day}
+                users={members}
+                compact
+              />
             </div>
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/** Inline add: creates a personal task already planned on this day (or none). */
-function QuickAdd({ day }: { day: number | null }) {
-  const [text, setText] = React.useState("");
-  const [pending, start] = React.useTransition();
-  const submit = () => {
-    const t = text.trim();
-    if (!t) return;
-    start(async () => {
-      await createTask({ text: t, scope: "PRIVATE", scheduledDay: day });
-      setText("");
-    });
-  };
-  return (
-    <div className="flex items-center gap-1 px-2 py-1.5">
-      <Plus className="h-3.5 w-3.5 shrink-0 text-faint" />
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
-        disabled={pending}
-        placeholder="Add task"
-        className="w-full rounded-md bg-transparent px-1 py-0.5 text-xs text-ink outline-none placeholder:text-faint focus:bg-surface-2 disabled:opacity-60"
-      />
     </div>
   );
 }

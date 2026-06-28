@@ -19,10 +19,14 @@ export function AddTask({
   scope,
   tabId,
   users,
+  scheduledDay,
+  compact = false,
 }: {
   scope: "BROOD" | "EVERYONE" | "PRIVATE";
   tabId?: string | null;
   users: TagUser[];
+  scheduledDay?: number | null;
+  compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState("");
@@ -44,6 +48,7 @@ export function AddTask({
         scope,
         tabId: tabId ?? null,
         taggedUserIds: tagged,
+        scheduledDay: scheduledDay ?? null,
       });
       close();
       if (res?.id)
@@ -56,9 +61,19 @@ export function AddTask({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" /> Add task
-      </Button>
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-1 px-2 py-1.5 text-xs text-faint transition-colors hover:text-ink"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add task
+        </button>
+      ) : (
+        <Button onClick={() => setOpen(true)}>
+          <Plus className="h-4 w-4" /> Add task
+        </Button>
+      )}
 
       <AnimatePresence>
         {open && (

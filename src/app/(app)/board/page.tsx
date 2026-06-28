@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getApprovedUser, getBoardTasks } from "@/lib/access";
 import { WeekBoard } from "@/components/week-board";
+import type { TagUser } from "@/components/add-task";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +10,21 @@ export default async function BoardPage() {
   const user = await getApprovedUser();
   if (!user) redirect("/login");
 
-  const tasks = await getBoardTasks(user);
+  const [tasks, users] = await Promise.all([
+    getBoardTasks(user),
+    prisma.user.findMany({
+      where: { status: "approved" },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, nickname: true, email: true },
+    }),
+  ]);
+
+  const members: TagUser[] = users
+    .filter((u) => u.id !== user.id)
+    .map((u) => ({
+      id: u.id,
+      label: u.nickname ?? u.name ?? u.email ?? "Unknown",
+    }));
 
   return (
     <div className="animate-rise pb-[30px]">
@@ -24,7 +40,7 @@ export default async function BoardPage() {
         </p>
       </header>
 
-      <WeekBoard initialTasks={tasks} />
+      <WeekBoard initialTasks={tasks} members={members} />
     </div>
   );
 }
