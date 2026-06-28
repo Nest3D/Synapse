@@ -1,43 +1,55 @@
-# Brood Membership Gate — Design
+# Member-Centric Access (People × Access merge) — Design
 
 **Date:** 2026-06-29
 **Status:** Approved (pending spec review)
+**Supersedes:** the earlier brood-centric draft of this file.
 
 ## Problem
 
-The Access page currently controls visibility **column by column** only. Brood
-(`Tab`) visibility is *implied*: a shared brood is visible to anyone who can see
-≥1 of its columns, and to every admin. There is no way to say "these people are
-in this brood, nobody else."
+Admin access management is split across two tabs of `/admin/broods`:
 
-We want explicit, brood-level membership that acts as a **hard gate**, with
-column permissions operating *within* the member set.
+- **People** tab — `UsersTable` (approve/role/status) + `InviteForm`.
+- **Access** tab — `BroodAccessPanel`, brood-centric: pick a brood, set
+  column rules (mode ALL/INCLUDE/EXCLUDE over users).
+
+Brood visibility is only *implied* (a shared brood shows to anyone who can see
+≥1 column, and to all admins). There is no explicit "who is in this brood,"
+and access is awkward to reason about per person.
+
+We want **one member-centric page**: each member's row expands to show the
+broods they belong to and, per brood, their column access. Two permission
+levels: **brood membership** (a hard gate), then **per-column access** within it.
 
 ## Goals
 
-1. Admin can set, per brood, **who is a member** (a listbox/pill toggle of
-   approved users).
-2. Membership is a **hard gate**: a non-member sees nothing of the brood in the
-   app — regardless of column rules.
-3. Column permissions still exist, one level below membership, scoped to members.
-4. The column mode formerly labeled **"Everyone"** becomes **"Brood Member"** —
-   meaning all brood members may view the column (no non-members ever can).
+1. Merge the People and Access tabs into a single member-centric **People** tab.
+   Remove the brood-centric `BroodAccessPanel`.
+2. Each member row expands to a brood list. Level 1: toggle brood membership.
+   Level 2: per-column access for that member.
+3. Brood membership is a **hard gate** — non-members see nothing of the brood
+   in the app.
+4. Keep the existing `FieldAccessMode` model (Brood Member / Only these /
+   Everyone except); the per-member checkbox edits the column's user list, with
+   server-side auto-conversion between modes.
 
 ## Decisions (from brainstorming)
 
 | Question | Decision |
 |---|---|
-| Gate model | **Hard gate** — membership filters first; column rules apply only among members. |
-| Admin viewing | **Admins are gated too** — must be a brood member to see the brood in the app. |
-| Admin management | **Admin panel stays open** — admins manage membership/permissions for all shared broods even when not a member. |
+| Page merge | **Replace both tabs with one** member-centric People tab; drop Access tab + `BroodAccessPanel`. |
+| Column model | **Keep `FieldAccessMode`**; per-member checkbox edits the column's include/exclude list. |
+| Where mode is set | **Inline per column** in the member view (mode selector is column-global; editable from any member's row). |
+| ALL-mode cell uncheck | **Auto-convert**: unchecking flips the column to EXCLUDE and adds that member to the exclude list. |
+| Empty exclude list | **Auto-revert to Brood Member (ALL)** when the last excluded user is re-checked. |
+| Save model | **Instant optimistic** per toggle/checkbox/mode; revert on server error. |
+| Gate | **Hard gate** — membership filters first; column rules apply only among members. |
+| Admin viewing | **Admins gated in-app** — must be a brood member to see a brood; but once a member, keep the **all-columns bypass** within that brood. |
+| Admin management | **People page is admin-only and shows all members × all shared broods**, regardless of the admin's own membership. |
 | Backfill on deploy | **Start empty** — no backfill; every brood invisible until membership set. |
-| Column pill pool | **Saved members only** — Include/Exclude pills draw from last-saved membership. |
-| Non-member admin in app | **Brood fully hidden.** |
 
 ## Data Model
 
-No new tables. The `BroodMember` model already exists in `prisma/schema.prisma`
-but is unused:
+No new tables. The existing, currently-unused `BroodMember` model is the gate:
 
 ```prisma
 model BroodMember {
@@ -53,28 +65,26 @@ model BroodMember {
 }
 ```
 
-`Tab.members BroodMember[]` and `User.broodMemberships BroodMember[]` back-relations
-already declared. Action item: run `db:push` so the table exists in the DB
-(currently empty/unmigrated). Start-empty means no seed step.
-
-Personal broods (`ownerId != null`) ignore membership entirely — still owner-only.
+`Tab.members` and `User.broodMemberships` back-relations already declared.
+Action item: run `db:push` so the table exists (currently empty/unmigrated).
+Start-empty → no seed step. Personal broods (`ownerId != null`) ignore
+membership (still owner-only) and never appear in the People grid.
 
 ## Access Logic — `src/lib/access.ts`
 
 ### `getTabsWithFields` (cache)
-Add members to the include:
+Add members to the include so the gate can read them:
 
 ```ts
 include: {
-  fields: { /* unchanged */ },
+  fields: { /* unchanged: orderBy + access userId */ },
   members: { select: { userId: true } },
 }
 ```
 
 `TabWithFields` type gains `members: { userId: string }[]`.
 
-### `broodVisibleTo(user, tab)` — the gate
-Replace the current body:
+### `broodVisibleTo(user, tab)` — the gate (rewritten)
 
 ```ts
 function broodVisibleTo(user: SessionUser, tab: TabWithFields): boolean {
@@ -83,111 +93,126 @@ function broodVisibleTo(user: SessionUser, tab: TabWithFields): boolean {
 }
 ```
 
-Notable: the blanket `if (isAdmin(user)) return true;` is **removed**. Admins must
-be members to see a shared brood in the app. This is the hard gate.
+The blanket `if (isAdmin(user)) return true;` is **removed** — admins must be
+members to see a shared brood in the app.
 
-### `getVisibleFields(user, tabId)`
-Unchanged in structure. It already early-returns `[]` when
-`!broodVisibleTo(...)`, so non-members get no columns. Past the gate, the
+### `getVisibleFields(user, tabId)` — unchanged
+Already early-returns `[]` when `!broodVisibleTo(...)`. Past the gate, the
 existing `effectiveAdmin = isAdmin(user) || tab.ownerId === user.id` keeps the
-all-columns bypass — but only ever reached when the admin **is** a member
-(gate guarantees it). Net: admin power is scoped to broods they joined.
-
-Column `ALL` (now "Brood Member") needs no logic change: the gate already
-removed non-members, so "all who reach here" = brood members.
+all-columns bypass — reached only when the admin is already a member. Net:
+admins see all columns of broods they belong to; non-member admins see nothing.
 
 ### Other consumers
-`getVisibleTabs`, `canAccessTab`, `getNavForUser` all delegate to
-`broodVisibleTo` / `getVisibleFields` — no change needed; they inherit the gate.
+`getVisibleTabs`, `canAccessTab`, `getNavForUser` delegate to `broodVisibleTo` /
+`getVisibleFields` — inherit the gate, no change.
 
 ## Server Actions — `src/app/(app)/admin/actions.ts`
 
-### New: `setBroodMembers(tabId, userIds[])`
+All `requireAdmin()`; all call `revalidateAccess(tabId)` (already refreshes nav
+`/`, `/archive`, `/tab/[id]`, `/admin/broods`). Granular for optimistic UI.
+
+### `setBroodMembership(tabId, userId, isMember)`
 
 ```ts
-export async function setBroodMembers(tabId: string, userIds: string[]) {
+export async function setBroodMembership(
+  tabId: string, userId: string, isMember: boolean,
+) {
   await requireAdmin();
-  const valid = (
-    await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true },
-    })
-  ).map((u) => u.id);
-
-  await prisma.$transaction([
-    prisma.broodMember.deleteMany({ where: { tabId } }),
-    ...valid.map((userId) =>
-      prisma.broodMember.create({ data: { tabId, userId } }),
-    ),
-  ]);
+  if (isMember) {
+    await prisma.broodMember.upsert({
+      where: { tabId_userId: { tabId, userId } },
+      create: { tabId, userId },
+      update: {},
+    });
+  } else {
+    await prisma.broodMember.deleteMany({ where: { tabId, userId } });
+  }
   revalidateAccess(tabId);
 }
 ```
 
-Mirrors `setBroodAccess`'s replace-all pattern. `revalidateAccess` already
-refreshes nav (`/`, `/archive`, `/tab/[id]`, `/admin/broods`).
+### `setColumnMode(fieldId, mode)` — inline mode selector
+Sets `FieldDef.accessMode`. On `ALL`, clears the `FieldAccessUser` list;
+INCLUDE/EXCLUDE keep the existing list. (Thin wrapper over the existing
+`setFieldAccess` shape.)
 
-### `getBroodAccessConfig` — add members
+### `setMemberColumnAccess(fieldId, userId, canView)` — the checkbox
+Single source of truth for the auto-conversion. Reads the field's current mode +
+user list, computes the new (mode, list) so that this member's effective
+visibility equals `canView`:
+
+| Current mode | canView=true | canView=false |
+|---|---|---|
+| ALL | no-op (already sees) | → EXCLUDE, add userId to list |
+| INCLUDE | add userId | remove userId |
+| EXCLUDE | remove userId; **if list now empty → ALL** | add userId |
+
+Then persists mode + list (reusing the `setFieldAccess` transaction pattern:
+update `FieldDef.accessMode`, delete + recreate `FieldAccessUser` rows) and
+`revalidateAccess`.
+
+### `getBroodAccessConfig` — extend
 Add `members: { select: { userId: true } }` to the tab select; return
-`members: t.members.map((m) => m.userId)` per brood. `BroodAccess` type gains
-`members: string[]`.
+`members: string[]` per brood (alongside existing `fields[].accessMode` +
+`userIds`). Feeds the People grid.
 
-## UI — `src/components/admin/brood-access-panel.tsx`
+## UI
 
-Per-brood expander gets two stacked sections:
+### `admin-sections.tsx`
+- `SECTIONS`: drop `{ key: "access" }`. Now `Broods | People | WhatsApp`.
+- Remove the `access` branch and the `BroodAccessPanel` import.
+- **People** branch renders `InviteForm` + the new member-centric `UsersTable`,
+  now also passed the access data: `accessBroods` (broods with columns: id,
+  label, accessMode, userIds, + brood `members`) and the approved-user list.
+- `BroodAccessPanel` component file deleted.
 
-```
-┌ Brood name  (N columns) ───────────────────┐
-│  MEMBERSHIP                                  │  ← new, top
-│  Who is in this brood.                       │
-│  [pill toggles of ALL approved users] [Save] │
-│ ───────────────────────────────────────────  │  ← divider
-│  Whole brood   [Brood Member ▾]       [Save]  │  ← existing column rules
-│  Column A      [Brood Member ▾]       [Save]  │
-│  Column B      [Only these ▾] [member pills]  │
-└──────────────────────────────────────────────┘
-```
+### `users-table.tsx` — expandable member rows
+Each `<tr>` gains a chevron toggle. Expanded, an inner panel (`MemberAccess`)
+shows, per shared brood:
 
-### Membership editor (new component, `MembershipEditor`)
-- Props: `users: UserOpt[]` (all approved), `initialMemberIds: string[]`,
-  `onSave(ids) => Promise`.
-- Reuses the existing pill-toggle pattern from `RuleEditor` (same styling).
-- Same dirty-tracking + re-seed-on-revalidate logic as `RuleEditor`.
-- `onSave` calls `setBroodMembers(b.id, ids)`.
+- **Membership toggle** (level 1) — checkbox/switch bound to
+  `accessBroods[b].members.includes(user.id)`; calls
+  `setBroodMembership(b.id, user.id, next)` optimistically.
+- When the member is in the brood, a **column list** (level 2): for each column
+  `{ label, mode selector, sees-checkbox }`.
+  - **Mode selector** — `Select` over ALL/INCLUDE/EXCLUDE with the labels
+    `Brood Member / Only these / Everyone except`; calls `setColumnMode`.
+    Subtle hint that the mode is brood-wide (affects all members).
+  - **Sees-checkbox** — effective visibility for this member, derived client-side
+    from `(mode, userIds, user.id)` via the same logic as `fieldVisible`; calls
+    `setMemberColumnAccess(fieldId, user.id, next)`.
+- When not a member, columns are hidden (collapsed).
 
-### `BroodAccessPanel` wiring
-- `Brood` type gains `members: string[]`.
-- Render `<MembershipEditor>` above the "Whole brood" `RuleEditor`, then the
-  existing divider, then the column `RuleEditor`s.
-- Pass `users={members}` (filtered to current saved members) into the column
-  `RuleEditor`s — **not** the full approved list. Compute
-  `const memberUsers = users.filter(u => b.members.includes(u.id))`.
-  The full `users` list stays only on the `MembershipEditor`.
+State: optimistic via `useTransition` + local mirror of `accessBroods`, re-seeded
+on revalidate (same re-seed pattern already used in `RuleEditor`/`NicknameEditor`).
+Server actions remain the single source of truth for mode auto-conversion; the
+client only needs the derived checkbox state for display.
 
-### Label change
-`MODE_LABEL.ALL`: `"Everyone"` → `"Brood Member"`.
-
-### Pill pool = saved members only
-The column `RuleEditor` receives `memberUsers` derived from `b.members` (server
-state). Editing membership and saving triggers revalidate → new `b.members` →
-column pills update on the refreshed render. No live unsaved cross-section sync.
+### Labels
+`Brood Member / Only these / Everyone except` (replaces `Everyone / Only these
+people / Everyone except`).
 
 ## Edge Cases
 
-- **Remove a member** who was in a column Include list: their `FieldAccessUser`
-  rows are left in place (harmless — the gate blocks them). Not cleaned up (YAGNI).
-- **Empty membership** (default for all broods on deploy): brood invisible to
-  everyone in the app, including admins; admins populate via the still-open panel.
-- **Member in Include list later removed from brood**: column pill no longer
-  shows them (pool = members); their stale rule row is inert.
-- **Personal broods**: unaffected — never appear in the admin panel, owner-only.
+- **Empty membership** (default on deploy): brood invisible to everyone in the
+  app including admins; admins populate via the People page (always open).
+- **Remove a member** who appears in a column's include/exclude list: their
+  `FieldAccessUser` rows are left in place (inert — the gate blocks them). Not
+  cleaned up (YAGNI).
+- **ALL→EXCLUDE auto-convert** then re-check the same member: EXCLUDE list
+  empties → auto-revert to ALL. Round-trips cleanly.
+- **Mode change is global**: editing a column's mode from member A's row changes
+  it for everyone; revalidate refreshes other rows' derived checkboxes.
+- **Concurrent edits** on the same column from two member rows: last write wins
+  (acceptable for admin-only tooling).
+- **Personal broods**: never in the grid; owner-only, unaffected.
 
 ## Out of Scope
 
-- Backfilling existing visibility into membership.
+- Backfilling existing implied visibility into membership.
 - Cleaning up orphaned `FieldAccessUser` rows.
-- Member-facing UI (self-join, requests) — admin-set only.
-- Live unsaved sync between membership and column pill pools.
+- Member-facing self-service (self-join, requests) — admin-set only.
+- Bulk operations (add user to many broods at once).
 
 ## Files Touched
 
@@ -195,5 +220,8 @@ column pills update on the refreshed render. No live unsaved cross-section sync.
 |---|---|
 | `prisma/schema.prisma` | `BroodMember` already present — `db:push` only. |
 | `src/lib/access.ts` | `getTabsWithFields` include members; rewrite `broodVisibleTo`; `getBroodAccessConfig` returns members; types. |
-| `src/app/(app)/admin/actions.ts` | New `setBroodMembers`. |
-| `src/components/admin/brood-access-panel.tsx` | `MembershipEditor`, wiring, label, member-pool filter, types. |
+| `src/app/(app)/admin/actions.ts` | New `setBroodMembership`, `setColumnMode`, `setMemberColumnAccess`. |
+| `src/components/admin/users-table.tsx` | Expandable rows + `MemberAccess` panel (membership toggle, column mode + checkbox), optimistic saves. |
+| `src/components/admin/admin-sections.tsx` | Drop Access tab; pass access data into People; remove `BroodAccessPanel` usage. |
+| `src/app/(app)/admin/broods/page.tsx` | Pass access config into the People section instead of the Access section. |
+| `src/components/admin/brood-access-panel.tsx` | **Deleted.** |
