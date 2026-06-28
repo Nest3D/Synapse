@@ -60,14 +60,15 @@ model User {
   status        UserStatus @default(pending)
   createdAt     DateTime   @default(now())
 
-  accounts      Account[]
-  sessions      Session[]
-  fieldAccess   FieldAccessUser[]
-  assignments   TaskAssignee[]
-  createdTasks  Task[]            @relation("TaskCreator")
-  notifications  Notification[]
-  ownedBroods    Tab[]             @relation("BroodOwner")
-  whatsappAliases WhatsAppAlias[]
+  accounts         Account[]
+  sessions         Session[]
+  fieldAccess      FieldAccessUser[]
+  assignments      TaskAssignee[]
+  createdTasks     Task[]            @relation("TaskCreator")
+  notifications    Notification[]
+  ownedBroods      Tab[]             @relation("BroodOwner")
+  whatsappAliases  WhatsAppAlias[]
+  broodMemberships BroodMember[]
 }
 
 model Account {
@@ -114,12 +115,27 @@ model Tab {
   archivedAt DateTime? // set when the brood is archived ("deleted")
   createdAt  DateTime  @default(now())
 
-  owner  User?      @relation("BroodOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  fields FieldDef[]
-  tasks  Task[]
+  owner   User?      @relation("BroodOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  fields  FieldDef[]
+  tasks   Task[]
+  members BroodMember[]
   whatsappAliases WhatsAppAlias[]
 
   @@index([ownerId])
+}
+
+// Membership of a (shared) brood — the hard visibility gate. A user sees a
+// shared brood in the app ONLY if they have a row here. No rows = nobody sees it.
+model BroodMember {
+  id     String @id @default(cuid())
+  tabId  String
+  userId String
+  brood  Tab    @relation(fields: [tabId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tabId, userId])
+  @@index([tabId])
+  @@index([userId])
 }
 
 // Admin-defined shortcut: a keyword that maps to a brood or a member, used to
