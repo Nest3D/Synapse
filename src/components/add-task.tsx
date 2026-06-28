@@ -6,7 +6,7 @@ import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useUndo } from "@/components/undo-context";
-import { createTask, deleteRow } from "@/app/(app)/actions";
+import { createTask, deleteTaskForever } from "@/app/(app)/actions";
 
 export type TagUser = { id: string; label: string };
 
@@ -52,7 +52,7 @@ export function AddTask({
       });
       close();
       if (res?.id)
-        push({ label: "add task", run: () => deleteRow(res.id) });
+        push({ label: "add task", run: () => deleteTaskForever(res.id) });
     });
   };
 

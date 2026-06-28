@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { getApprovedUser, getArchivedBroods } from "@/lib/access";
+import {
+  getApprovedUser,
+  getArchivedBroods,
+  getDeletedTasks,
+} from "@/lib/access";
 import { LogList, type LogRow } from "@/components/log-list";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +12,12 @@ export default async function ArchivePage() {
   const user = await getApprovedUser();
   if (!user) redirect("/login");
 
-  const broods = await getArchivedBroods(user);
-  const rows: LogRow[] = broods.map((b) => ({
+  const [broods, deletedTasks] = await Promise.all([
+    getArchivedBroods(user),
+    getDeletedTasks(user),
+  ]);
+
+  const broodRows: LogRow[] = broods.map((b) => ({
     id: b.id,
     title: b.name,
     brood: `brood · ${b.taskCount} ${b.taskCount === 1 ? "task" : "tasks"}`,
@@ -19,6 +27,10 @@ export default async function ArchivePage() {
     kind: "brood",
     personal: b.personal,
   }));
+
+  const rows: LogRow[] = [...broodRows, ...(deletedTasks as LogRow[])].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+  );
 
   return (
     <div className="animate-rise">
@@ -30,11 +42,11 @@ export default async function ArchivePage() {
           Archive
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Deleted broods, newest first.
+          Deleted tasks and broods. Restore them, or delete forever.
         </p>
       </header>
 
-      <LogList rows={rows} canRestoreBrood emptyLabel="No deleted broods." />
+      <LogList rows={rows} archive emptyLabel="Archive is empty." />
     </div>
   );
 }

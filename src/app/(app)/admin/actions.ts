@@ -176,6 +176,23 @@ export async function unarchiveTab(tabId: string) {
   revalidatePath("/", "layout");
 }
 
+/** Permanently delete an archived brood (from the Archive — not recoverable). */
+export async function deleteBroodForever(tabId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.status !== "approved") throw new Error("Unauthorized");
+  const tab = await prisma.tab.findUniqueOrThrow({
+    where: { id: tabId },
+    select: { ownerId: true },
+  });
+  const allowed =
+    (isAdmin(user) && tab.ownerId === null) || tab.ownerId === user.id;
+  if (!allowed) throw new Error("Forbidden");
+  await prisma.tab.delete({ where: { id: tabId } });
+  revalidatePath("/archive");
+  revalidatePath("/admin/broods");
+  revalidatePath("/", "layout");
+}
+
 /* ---- WhatsApp aliases ---- */
 export async function addWhatsAppAlias(
   keyword: string,

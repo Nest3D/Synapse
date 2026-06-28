@@ -19,7 +19,7 @@ import {
   deleteRow,
   updateCell,
   moveTask,
-  restoreTask,
+  undeleteTask,
   tagTask,
   untagTask,
   setTaskAlert,
@@ -124,8 +124,8 @@ export function TaskGrid({
 
   const doDelete = (taskId: string) =>
     startTransition(async () => {
-      const snap = await deleteRow(taskId);
-      push({ label: "delete", run: () => restoreTask(snap) });
+      await deleteRow(taskId);
+      push({ label: "delete", run: () => undeleteTask(taskId) });
     });
 
   return (
@@ -201,7 +201,7 @@ export function TaskGrid({
 
                   {showActions && (
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                         {canEdit && (
                           <AlertControl
                             taskId={row.id}

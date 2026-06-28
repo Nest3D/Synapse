@@ -110,53 +110,51 @@ export async function createTask(input: {
   return { id: task.id };
 }
 
-export type TaskSnapshot = {
-  tabId: string | null;
-  scope: Scope;
-  createdById: string | null;
-  source: "manual" | "whatsapp";
-  values: Record<string, unknown>;
-  assigneeIds: string[];
-};
-
-/** Recreate a task from a snapshot (used to undo a delete). Returns the new id. */
-export async function restoreTask(snap: TaskSnapshot) {
+/** Restore a soft-deleted task from the Archive. */
+export async function undeleteTask(taskId: string) {
   const user = await requireUser();
-  const allowed =
-    isAdmin(user) ||
-    snap.createdById === user.id ||
-    (!!snap.tabId && (await canAccessTab(user, snap.tabId)));
-  if (!allowed) throw new Error("Forbidden");
-
-  const last = await prisma.task.findFirst({
-    where:
-      snap.tabId === null
-        ? { scope: snap.scope, tabId: null }
-        : { tabId: snap.tabId },
-    orderBy: { position: "desc" },
-    select: { position: true },
+  const t = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { tabId: true, createdById: true },
   });
+  if (!(await canManageLooseTask(user, t))) throw new Error("Forbidden");
+  await prisma.task.update({ where: { id: taskId }, data: { deletedAt: null } });
+  refreshTaskSurfaces(t.tabId);
+  revalidatePath("/archive");
+}
 
-  const validAssignees = (
-    await prisma.user.findMany({
-      where: { id: { in: snap.assigneeIds } },
-      select: { id: true },
-    })
-  ).map((u) => u.id);
+/** Permanently delete a task (from the Archive — not recoverable). */
+export async function deleteTaskForever(taskId: string) {
+  const user = await requireUser();
+  const t = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { tabId: true, createdById: true },
+  });
+  if (!(await canManageLooseTask(user, t))) throw new Error("Forbidden");
+  await prisma.task.delete({ where: { id: taskId } });
+  refreshTaskSurfaces(t.tabId);
+  revalidatePath("/archive");
+}
 
-  const task = await prisma.task.create({
-    data: {
-      tabId: snap.tabId,
-      scope: snap.scope,
-      createdById: snap.createdById,
-      source: snap.source,
-      position: (last?.position ?? 0) + 1,
-      values: snap.values as Prisma.InputJsonObject,
-      assignees: { create: validAssignees.map((userId) => ({ userId })) },
+/** Empty the Archive: permanently delete every archived item the user manages. */
+export async function deleteAllArchived() {
+  const user = await requireUser();
+  const admin = isAdmin(user);
+  await prisma.tab.deleteMany({
+    where: {
+      archivedAt: { not: null },
+      OR: [{ ownerId: user.id }, ...(admin ? [{ ownerId: null }] : [])],
     },
   });
-  refreshTaskSurfaces(snap.tabId);
-  return { id: task.id };
+  await prisma.task.deleteMany({
+    where: {
+      deletedAt: { not: null },
+      ...(admin ? {} : { createdById: user.id }),
+    },
+  });
+  revalidatePath("/archive");
+  revalidatePath("/admin/broods");
+  revalidatePath("/", "layout");
 }
 
 /**
@@ -235,31 +233,22 @@ export async function moveTask(
   };
 }
 
-export async function deleteRow(taskId: string): Promise<TaskSnapshot> {
+/** Soft-delete a task: it moves to the Archive (recoverable), not destroyed. */
+export async function deleteRow(taskId: string): Promise<{ id: string }> {
   const user = await requireUser();
   if (!(await canSeeTask(user, taskId))) throw new Error("Forbidden");
   const found = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: {
-      tabId: true,
-      scope: true,
-      createdById: true,
-      source: true,
-      values: true,
-      assignees: { select: { userId: true } },
-    },
+    select: { tabId: true, createdById: true },
   });
   if (!(await canManageLooseTask(user, found))) throw new Error("Forbidden");
-  await prisma.task.delete({ where: { id: taskId } });
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { deletedAt: new Date() },
+  });
   refreshTaskSurfaces(found.tabId);
-  return {
-    tabId: found.tabId,
-    scope: found.scope as Scope,
-    createdById: found.createdById,
-    source: found.source,
-    values: found.values as Record<string, unknown>,
-    assigneeIds: found.assignees.map((a) => a.userId),
-  };
+  revalidatePath("/archive");
+  return { id: taskId };
 }
 
 export async function updateCell(

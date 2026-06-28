@@ -158,7 +158,11 @@ export async function getVisibleTasks(user: SessionUser, tabId: string) {
   if (!(await canAccessTab(user, tabId))) throw new Error("Forbidden");
 
   const tasks = await prisma.task.findMany({
-    where: { tabId, NOT: { values: { path: ["done"], equals: true } } },
+    where: {
+      tabId,
+      deletedAt: null,
+      NOT: { values: { path: ["done"], equals: true } },
+    },
     orderBy: { position: "asc" },
   });
 
@@ -343,6 +347,7 @@ export async function getMyTaskSections(
   // live in a brood I can't otherwise access (so a tag truly reaches me).
   const personal = await prisma.task.findMany({
     where: {
+      deletedAt: null,
       NOT: { values: { path: ["done"], equals: true } },
       OR: [
         { tabId: null, scope: "PRIVATE", createdById: user.id },
@@ -391,6 +396,7 @@ export async function getEveryoneTasks(): Promise<GridRow[]> {
   const tasks = await prisma.task.findMany({
     where: {
       scope: "EVERYONE",
+      deletedAt: null,
       NOT: { values: { path: ["done"], equals: true } },
     },
     orderBy: { position: "asc" },
@@ -461,7 +467,7 @@ export async function getDoneTasks(user: SessionUser): Promise<LogRow[]> {
   const accessible = new Set(tabs.map((t) => t.id));
 
   const done = await prisma.task.findMany({
-    where: { values: { path: ["done"], equals: true } },
+    where: { deletedAt: null, values: { path: ["done"], equals: true } },
     include: {
       tab: { select: { name: true } },
       creator: { select: { name: true, nickname: true, email: true } },
@@ -511,6 +517,60 @@ export async function getDoneTasks(user: SessionUser): Promise<LogRow[]> {
   return rows;
 }
 
+/** Soft-deleted tasks the user can see, as log rows (for the Archive page). */
+export async function getDeletedTasks(user: SessionUser): Promise<LogRow[]> {
+  const tabs = await getVisibleTabs(user);
+  const accessible = new Set(tabs.map((t) => t.id));
+
+  const deleted = await prisma.task.findMany({
+    where: { deletedAt: { not: null } },
+    include: {
+      tab: { select: { name: true } },
+      creator: { select: { name: true, nickname: true, email: true } },
+      assignees: {
+        include: {
+          user: { select: { name: true, nickname: true, email: true } },
+        },
+      },
+    },
+    orderBy: { deletedAt: "desc" },
+  });
+
+  const label = (u: {
+    name: string | null;
+    nickname: string | null;
+    email: string | null;
+  }) => u.nickname ?? u.name ?? u.email ?? "Unknown";
+
+  const rows: LogRow[] = [];
+  for (const t of deleted) {
+    if (!aggregateVisible(user, t, accessible)) continue;
+    const v = t.values as Record<string, unknown>;
+    rows.push({
+      id: t.id,
+      title:
+        typeof v.description === "string" && v.description
+          ? v.description
+          : "—",
+      brood: t.tab
+        ? t.tab.name
+        : t.scope === "EVERYONE"
+          ? "All Tasks"
+          : "My Tasks",
+      members: Array.from(
+        new Set([
+          ...(t.creator ? [label(t.creator)] : []),
+          ...t.assignees.map((a) => label(a.user)),
+        ]),
+      ),
+      at: t.deletedAt!,
+      href: null,
+      kind: "task",
+    });
+  }
+  return rows;
+}
+
 /* ---------------- Notifications ---------------- */
 
 export async function getNotifications(user: SessionUser) {
@@ -540,7 +600,10 @@ export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
   const accessible = new Set(tabs.map((t) => t.id));
 
   const tasks = await prisma.task.findMany({
-    where: { NOT: { values: { path: ["done"], equals: true } } },
+    where: {
+      deletedAt: null,
+      NOT: { values: { path: ["done"], equals: true } },
+    },
     include: {
       tab: { select: { name: true } },
       assignees: { select: { userId: true } },
