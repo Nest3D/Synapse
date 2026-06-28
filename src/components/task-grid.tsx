@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useUndo } from "@/components/undo-context";
 import {
   deleteRow,
@@ -170,19 +171,22 @@ export function TaskGrid({
                           {i + 1}
                         </span>
                       )}
-                      <span
-                        title={
+                      <Tooltip
+                        label={
                           row.scheduledDay != null
                             ? `Planned: ${DAY_NAMES[row.scheduledDay]}`
                             : "No planned day"
                         }
-                        className={cn(
-                          "h-2 w-2 rounded-full",
-                          row.scheduledDay != null
-                            ? "bg-[#3b82f6]"
-                            : "border border-border",
-                        )}
-                      />
+                      >
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full",
+                            row.scheduledDay != null
+                              ? "bg-[#3b82f6]"
+                              : "border border-border",
+                          )}
+                        />
+                      </Tooltip>
                     </div>
                   </td>
 
