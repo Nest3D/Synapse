@@ -311,19 +311,16 @@ function MemberAccess({
           ? b
           : {
               ...b,
-              fields: b.fields.map((f) =>
-                f.id !== fieldId
-                  ? f
-                  : {
-                      ...f,
-                      ...applyMemberColumnAccess(
-                        f.accessMode,
-                        f.userIds,
-                        userId,
-                        canView,
-                      ),
-                    },
-              ),
+              fields: b.fields.map((f) => {
+                if (f.id !== fieldId) return f;
+                const { mode: accessMode, userIds } = applyMemberColumnAccess(
+                  f.accessMode,
+                  f.userIds,
+                  userId,
+                  canView,
+                );
+                return { ...f, accessMode, userIds };
+              }),
             },
       ),
     );
