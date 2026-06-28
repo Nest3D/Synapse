@@ -366,15 +366,20 @@ function MemberAccess({
                       <span className="min-w-[7rem] flex-1 text-sm text-ink">
                         {f.label}
                       </span>
-                      <Select
-                        value={f.accessMode}
-                        onChange={(v) => setMode(b.id, f.id, v as Mode)}
-                        ariaLabel="Column visibility mode (applies brood-wide)"
-                        className="w-40"
-                        options={(["ALL", "INCLUDE", "EXCLUDE"] as const).map(
-                          (mm) => ({ value: mm, label: MODE_LABEL[mm] }),
-                        )}
-                      />
+                      <div className="flex flex-col items-start gap-0.5">
+                        <Select
+                          value={f.accessMode}
+                          onChange={(v) => setMode(b.id, f.id, v as Mode)}
+                          ariaLabel="Column visibility mode (applies brood-wide)"
+                          className="w-40"
+                          options={(["ALL", "INCLUDE", "EXCLUDE"] as const).map(
+                            (mm) => ({ value: mm, label: MODE_LABEL[mm] }),
+                          )}
+                        />
+                        <span className="text-[10px] uppercase tracking-wide text-faint">
+                          all members
+                        </span>
+                      </div>
                       <label className="inline-flex items-center gap-1.5 text-xs text-muted">
                         <input
                           type="checkbox"
