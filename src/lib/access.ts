@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripValuesToVisible } from "@/lib/permissions";
 import type { Role, UserStatus, FieldAccessMode } from "@prisma/client";
+import { memberSeesColumn, type AccessBrood } from "./brood-access";
 
 export type SessionUser = {
   id: string;
@@ -44,9 +45,7 @@ export function fieldVisible(
   userId: string,
 ): boolean {
   if (admin) return true;
-  if (mode === "ALL") return true;
-  const inList = userIds.includes(userId);
-  return mode === "INCLUDE" ? inList : !inList;
+  return memberSeesColumn(mode, userIds, userId);
 }
 
 /** All broods with their columns + access lists. Cached per request. */
@@ -59,6 +58,7 @@ const getTabsWithFields = cache(async () =>
         orderBy: { order: "asc" },
         include: { access: { select: { userId: true } } },
       },
+      members: { select: { userId: true } },
     },
   }),
 );
@@ -70,19 +70,17 @@ export const getTab = cache((tabId: string) =>
 
 type TabWithFields = {
   ownerId: string | null;
+  members: { userId: string }[];
   fields: { accessMode: FieldAccessMode; access: { userId: string }[] }[];
 };
 
 /**
  * Whether a user can see a brood. Personal broods (ownerId set) are owner-only.
- * Shared broods are visible to admins, or to anyone with ≥1 visible column.
+ * Shared broods are visible ONLY to their members — admins included.
  */
 function broodVisibleTo(user: SessionUser, tab: TabWithFields): boolean {
   if (tab.ownerId) return tab.ownerId === user.id;
-  if (isAdmin(user)) return true;
-  return tab.fields.some((f) =>
-    fieldVisible(false, f.accessMode, f.access.map((a) => a.userId), user.id),
-  );
+  return tab.members.some((m) => m.userId === user.id);
 }
 
 /** Columns a user may VIEW in a brood (ordered), honoring each column's rule. */
@@ -634,26 +632,15 @@ export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
 
 /* ---------------- Admin: permission configuration ---------------- */
 
-export type BroodAccess = {
-  id: string;
-  name: string;
-  fields: {
-    id: string;
-    label: string;
-    type: string;
-    accessMode: FieldAccessMode;
-    userIds: string[];
-  }[];
-};
-
 /** Every brood with its columns + current access rules, for the People page. */
-export async function getBroodAccessConfig(): Promise<BroodAccess[]> {
+export async function getBroodAccessConfig(): Promise<AccessBrood[]> {
   const tabs = await prisma.tab.findMany({
     where: { ownerId: null, archivedAt: null }, // personal broods aren't admin-managed
     orderBy: { order: "asc" },
     select: {
       id: true,
       name: true,
+      members: { select: { userId: true } },
       fields: {
         orderBy: { order: "asc" },
         select: {
@@ -669,6 +656,7 @@ export async function getBroodAccessConfig(): Promise<BroodAccess[]> {
   return tabs.map((t) => ({
     id: t.id,
     name: t.name,
+    members: t.members.map((m) => m.userId),
     fields: t.fields.map((f) => ({
       id: f.id,
       label: f.label,
