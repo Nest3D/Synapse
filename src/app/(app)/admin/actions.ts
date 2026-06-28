@@ -276,81 +276,11 @@ function revalidateAccess(tabId?: string) {
   revalidatePath("/admin/broods");
   revalidatePath("/", "layout"); // brood may appear/disappear from nav
   revalidatePath("/archive");
+  revalidatePath("/board"); // aggregate views re-derive from the accessible set
+  revalidatePath("/done");
+  revalidatePath("/my-tasks");
   if (tabId) revalidatePath(`/tab/${tabId}`);
   else revalidatePath("/tab/[tabId]", "page");
-}
-
-/** Set one column's access rule. ALL clears the user list. */
-export async function setFieldAccess(
-  fieldId: string,
-  mode: FieldAccessMode,
-  userIds: string[],
-) {
-  await requireAdmin();
-  const field = await prisma.fieldDef.findUniqueOrThrow({
-    where: { id: fieldId },
-    select: { tabId: true },
-  });
-
-  const valid =
-    mode === "ALL"
-      ? []
-      : (
-          await prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true },
-          })
-        ).map((u) => u.id);
-
-  await prisma.$transaction([
-    prisma.fieldDef.update({
-      where: { id: fieldId },
-      data: { accessMode: mode },
-    }),
-    prisma.fieldAccessUser.deleteMany({ where: { fieldId } }),
-    ...valid.map((userId) =>
-      prisma.fieldAccessUser.create({ data: { fieldId, userId } }),
-    ),
-  ]);
-  revalidateAccess(field.tabId);
-}
-
-/** Apply one access rule to every column of a brood (the "whole brood" shortcut). */
-export async function setBroodAccess(
-  tabId: string,
-  mode: FieldAccessMode,
-  userIds: string[],
-) {
-  await requireAdmin();
-  const fields = await prisma.fieldDef.findMany({
-    where: { tabId },
-    select: { id: true },
-  });
-  const valid =
-    mode === "ALL"
-      ? []
-      : (
-          await prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true },
-          })
-        ).map((u) => u.id);
-
-  await prisma.$transaction([
-    prisma.fieldDef.updateMany({
-      where: { tabId },
-      data: { accessMode: mode },
-    }),
-    prisma.fieldAccessUser.deleteMany({
-      where: { fieldId: { in: fields.map((f) => f.id) } },
-    }),
-    ...fields.flatMap((f) =>
-      valid.map((userId) =>
-        prisma.fieldAccessUser.create({ data: { fieldId: f.id, userId } }),
-      ),
-    ),
-  ]);
-  revalidateAccess(tabId);
 }
 
 /** Add or remove one user's membership in a shared brood (the visibility gate). */
