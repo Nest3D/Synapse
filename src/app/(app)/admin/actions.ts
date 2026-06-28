@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/access";
 import type { FieldType, FieldAccessMode } from "@prisma/client";
+import { applyMemberColumnAccess } from "@/lib/brood-access";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -350,4 +351,76 @@ export async function setBroodAccess(
     ),
   ]);
   revalidateAccess(tabId);
+}
+
+/** Add or remove one user's membership in a shared brood (the visibility gate). */
+export async function setBroodMembership(
+  tabId: string,
+  userId: string,
+  isMember: boolean,
+) {
+  await requireAdmin();
+  if (isMember) {
+    await prisma.broodMember.upsert({
+      where: { tabId_userId: { tabId, userId } },
+      create: { tabId, userId },
+      update: {},
+    });
+  } else {
+    await prisma.broodMember.deleteMany({ where: { tabId, userId } });
+  }
+  revalidateAccess(tabId);
+}
+
+/** Set one column's access mode (brood-wide). Switching to ALL clears its list. */
+export async function setColumnMode(fieldId: string, mode: FieldAccessMode) {
+  await requireAdmin();
+  const field = await prisma.fieldDef.findUniqueOrThrow({
+    where: { id: fieldId },
+    select: { tabId: true },
+  });
+  await prisma.$transaction([
+    prisma.fieldDef.update({ where: { id: fieldId }, data: { accessMode: mode } }),
+    ...(mode === "ALL"
+      ? [prisma.fieldAccessUser.deleteMany({ where: { fieldId } })]
+      : []),
+  ]);
+  revalidateAccess(field.tabId);
+}
+
+/**
+ * Toggle whether one member sees one column. Reads the column's current rule and
+ * auto-converts the mode (e.g. unchecking an ALL column makes it EXCLUDE).
+ */
+export async function setMemberColumnAccess(
+  fieldId: string,
+  userId: string,
+  canView: boolean,
+) {
+  await requireAdmin();
+  const field = await prisma.fieldDef.findUniqueOrThrow({
+    where: { id: fieldId },
+    select: {
+      tabId: true,
+      accessMode: true,
+      access: { select: { userId: true } },
+    },
+  });
+  const next = applyMemberColumnAccess(
+    field.accessMode,
+    field.access.map((a) => a.userId),
+    userId,
+    canView,
+  );
+  await prisma.$transaction([
+    prisma.fieldDef.update({
+      where: { id: fieldId },
+      data: { accessMode: next.mode },
+    }),
+    prisma.fieldAccessUser.deleteMany({ where: { fieldId } }),
+    ...next.userIds.map((uid) =>
+      prisma.fieldAccessUser.create({ data: { fieldId, userId: uid } }),
+    ),
+  ]);
+  revalidateAccess(field.tabId);
 }
