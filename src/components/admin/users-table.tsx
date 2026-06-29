@@ -58,7 +58,8 @@ export function UsersTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface card-float">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[36rem] text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-2/60 text-left font-mono text-[11px] uppercase tracking-[0.15em] text-faint">
             <th className="px-4 py-3">User</th>
@@ -240,6 +241,7 @@ export function UsersTable({
           </AnimatePresence>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
