@@ -122,7 +122,15 @@ export async function resolveTarget(token: string): Promise<Target | null> {
 }
 
 export type IngestResult =
-  | { ok: true; taskId: string; tabId: string | null; placement: string }
+  | {
+      ok: true;
+      taskId: string;
+      tabId: string | null;
+      placement: string;
+      recipientIds: string[];
+      actorName: string;
+      description: string;
+    }
   | { ok: false; error: string };
 
 /**
@@ -236,7 +244,18 @@ export async function ingestParsedMessage(
     });
   }
 
-  return { ok: true, taskId: task.id, tabId, placement };
+  const waRecipients = new Set<string>(notify);
+  if (sender) waRecipients.add(sender.id);
+
+  return {
+    ok: true,
+    taskId: task.id,
+    tabId,
+    placement,
+    recipientIds: [...waRecipients],
+    actorName,
+    description,
+  };
 }
 
 /* ---------------- Outbound: query pending tasks ---------------- */

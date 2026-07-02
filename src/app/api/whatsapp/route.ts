@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   verifySignature,
@@ -8,6 +8,7 @@ import {
   handleQueryCommand,
   sendWhatsApp,
 } from "@/lib/whatsapp";
+import { notifyTaskLinked } from "@/lib/task-notify";
 
 export const runtime = "nodejs";
 
@@ -84,6 +85,16 @@ export async function POST(req: NextRequest) {
           error: result.ok ? null : result.error,
         },
       });
+      if (result.ok && result.recipientIds.length) {
+        after(() =>
+          notifyTaskLinked(result.recipientIds, {
+            actorName: result.actorName,
+            tabId: result.tabId,
+            taskText: result.description,
+            taskId: result.taskId,
+          }),
+        );
+      }
     } catch (err) {
       await prisma.whatsAppLog.create({
         data: {
