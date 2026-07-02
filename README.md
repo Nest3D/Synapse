@@ -253,3 +253,18 @@ outbound enabled: set `WHATSAPP_TOKEN` (a system-user/permanent access token)
 and `WHATSAPP_PHONE_NUMBER_ID` (the business number ID) from Meta. Replies to a
 message you sent within the last 24h need no template. Without these vars the
 bot stays ingest-only (no reply).
+
+**Task notifications (push):** when a task is created, handed off, or tagged,
+everyone linked to it (plus the actor) gets a WhatsApp message — if they have a
+phone on file. Because this is business-initiated, it uses a **Meta-approved
+template**, not free-form text. Setup:
+
+1. Meta Business Manager → **WhatsApp Manager → Message Templates → Create**;
+   category **Utility**; pick a name and language.
+2. Body: `{{1}} linked you to a task in {{2}}: {{3}}` (actor, brood, task text);
+   add a static **URL button** to the app.
+3. Once **Approved**, set `WHATSAPP_TASK_TEMPLATE` (the template name) and
+   `WHATSAPP_TEMPLATE_LANG` (its language code, e.g. `en_US` or `he`).
+
+Unset ⇒ no push is sent (safe no-op). Outbound sends are logged under
+**Broods → WhatsApp → Recent activity** (`direction: outbound`).
