@@ -21,28 +21,27 @@ export async function notifyTaskLinked(
 ): Promise<void> {
   const ids = [...new Set(recipientUserIds)];
   if (ids.length === 0) return;
+  try {
+    const [users, tab] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: ids }, phone: { not: null } },
+        select: { phone: true },
+      }),
+      ctx.tabId
+        ? prisma.tab.findUnique({
+            where: { id: ctx.tabId },
+            select: { name: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    if (users.length === 0) return;
 
-  const [users, tab] = await Promise.all([
-    prisma.user.findMany({
-      where: { id: { in: ids }, phone: { not: null } },
-      select: { phone: true },
-    }),
-    ctx.tabId
-      ? prisma.tab.findUnique({
-          where: { id: ctx.tabId },
-          select: { name: true },
-        })
-      : Promise.resolve(null),
-  ]);
-  if (users.length === 0) return;
+    const brood = tab?.name?.trim() ? tab.name : "—";
+    const body = [ctx.actorName, brood, ctx.taskText.slice(0, 300)];
 
-  const brood = tab?.name?.trim() ? tab.name : "—";
-  const body = [ctx.actorName, brood, ctx.taskText.slice(0, 300)];
-
-  for (const u of users) {
-    const to = u.phone as string;
-    const ok = await sendWhatsAppTemplate(to, body);
-    try {
+    for (const u of users) {
+      const to = u.phone as string;
+      const ok = await sendWhatsAppTemplate(to, body);
       await prisma.whatsAppLog.create({
         data: {
           rawPayload: { to, body } as Prisma.InputJsonObject,
@@ -55,8 +54,8 @@ export async function notifyTaskLinked(
           error: ok ? null : "send failed",
         },
       });
-    } catch {
-      /* logging must never break the caller */
     }
+  } catch {
+    /* notifications must never break the caller */
   }
 }
