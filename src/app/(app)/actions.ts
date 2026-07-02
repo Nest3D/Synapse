@@ -12,6 +12,8 @@ import {
   isAdmin,
 } from "@/lib/access";
 import { defaultDeadlines } from "@/lib/alerts";
+import { after } from "next/server";
+import { notifyTaskLinked } from "@/lib/task-notify";
 
 type Scope = "BROOD" | "EVERYONE" | "PRIVATE";
 
@@ -105,6 +107,15 @@ export async function createTask(input: {
       })),
     });
   }
+
+  after(() =>
+    notifyTaskLinked([...validTagged, user.id], {
+      actorName,
+      tabId,
+      taskText: text,
+      taskId: task.id,
+    }),
+  );
 
   refreshTaskSurfaces(tabId);
   return { id: task.id };
@@ -210,18 +221,28 @@ export async function moveTask(
     data: { ...data, position: (last?.position ?? 0) + 1 },
   });
 
-  if (notifyUserId && notifyUserId !== user.id) {
+  if (notifyUserId) {
     const v = task.values as Record<string, unknown>;
     const text = typeof v.description === "string" ? v.description : "a task";
     const actorName = user.name ?? user.email ?? "Someone";
-    await prisma.notification.create({
-      data: {
-        userId: notifyUserId,
+    if (notifyUserId !== user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: notifyUserId,
+          actorName,
+          taskId,
+          message: `${actorName} handed off to you: "${text.slice(0, 80)}"`,
+        },
+      });
+    }
+    after(() =>
+      notifyTaskLinked([notifyUserId, user.id], {
         actorName,
+        tabId: null, // person handoff makes the task PRIVATE (no brood)
+        taskText: text,
         taskId,
-        message: `${actorName} handed off to you: "${text.slice(0, 80)}"`,
-      },
-    });
+      }),
+    );
   }
 
   refreshTaskSurfaces(task.tabId);
@@ -333,6 +354,15 @@ export async function tagTask(
       })),
     });
   }
+
+  after(() =>
+    notifyTaskLinked([...toAdd, user.id], {
+      actorName,
+      tabId: task.tabId,
+      taskText: text,
+      taskId,
+    }),
+  );
 
   refreshTaskSurfaces(task.tabId);
   return { added: toAdd };
