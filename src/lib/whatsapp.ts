@@ -317,3 +317,58 @@ export async function sendWhatsApp(to: string, body: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Graph API body for a template message with a text body (static button, if any,
+ * is baked into the approved template so it needs no send-time component). */
+export function buildTemplatePayload(
+  to: string,
+  templateName: string,
+  languageCode: string,
+  bodyParams: string[],
+): Record<string, unknown> {
+  return {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      components: [
+        {
+          type: "body",
+          parameters: bodyParams.map((text) => ({ type: "text", text })),
+        },
+      ],
+    },
+  };
+}
+
+/** Send an approved template message. No-op (false) unless fully configured. */
+export async function sendWhatsAppTemplate(
+  to: string,
+  bodyParams: string[],
+): Promise<boolean> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const template = process.env.WHATSAPP_TASK_TEMPLATE;
+  const lang = process.env.WHATSAPP_TEMPLATE_LANG;
+  if (!token || !phoneId || !template || !lang || !to) return false;
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          buildTemplatePayload(to, template, lang, bodyParams),
+        ),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

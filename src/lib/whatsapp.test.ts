@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { parseMessage, normalizePhone } from "./whatsapp-parse";
+
+// Stub heavy server-side modules so pure functions in whatsapp.ts are testable
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/access", () => ({ getMyTaskSections: vi.fn() }));
+vi.mock("@/lib/alerts", () => ({ defaultDeadlines: vi.fn() }));
+
+import { buildTemplatePayload } from "./whatsapp";
 
 describe("parseMessage", () => {
   it("uses the first token as destination and the rest as description", () => {
@@ -37,5 +44,43 @@ describe("normalizePhone", () => {
   it("handles null/undefined", () => {
     expect(normalizePhone(null)).toBe("");
     expect(normalizePhone(undefined)).toBe("");
+  });
+});
+
+describe("buildTemplatePayload", () => {
+  it("builds a template message with body text parameters", () => {
+    expect(
+      buildTemplatePayload("15551234567", "task_linked", "en_US", [
+        "Dana",
+        "Marketing",
+        "Buy milk",
+      ]),
+    ).toEqual({
+      messaging_product: "whatsapp",
+      to: "15551234567",
+      type: "template",
+      template: {
+        name: "task_linked",
+        language: { code: "en_US" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "Dana" },
+              { type: "text", text: "Marketing" },
+              { type: "text", text: "Buy milk" },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("handles an empty parameter list (no body params)", () => {
+    const payload = buildTemplatePayload("15550000000", "t", "he", []);
+    expect(
+      (payload.template as { components: { parameters: unknown[] }[] })
+        .components[0].parameters,
+    ).toEqual([]);
   });
 });
