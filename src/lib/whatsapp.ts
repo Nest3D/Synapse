@@ -337,6 +337,16 @@ export async function sendWhatsApp(to: string, body: string): Promise<boolean> {
   }
 }
 
+/** True only when all four env vars needed to send a template are present. */
+export function whatsAppTemplateConfigured(): boolean {
+  return !!(
+    process.env.WHATSAPP_TOKEN &&
+    process.env.WHATSAPP_PHONE_NUMBER_ID &&
+    process.env.WHATSAPP_TASK_TEMPLATE &&
+    process.env.WHATSAPP_TEMPLATE_LANG
+  );
+}
+
 /** Graph API body for a template message with a text body (static button, if any,
  * is baked into the approved template so it needs no send-time component). */
 export function buildTemplatePayload(

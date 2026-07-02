@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { sendWhatsAppTemplate } from "@/lib/whatsapp";
+import {
+  sendWhatsAppTemplate,
+  whatsAppTemplateConfigured,
+} from "@/lib/whatsapp";
 
 export type TaskLinkContext = {
   actorName: string;
@@ -19,6 +22,8 @@ export async function notifyTaskLinked(
   recipientUserIds: string[],
   ctx: TaskLinkContext,
 ): Promise<void> {
+  // Not configured (e.g. template not yet approved) → no push, no log noise.
+  if (!whatsAppTemplateConfigured()) return;
   const ids = [...new Set(recipientUserIds)];
   if (ids.length === 0) return;
   try {
