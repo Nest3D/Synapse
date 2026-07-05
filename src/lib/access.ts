@@ -161,7 +161,7 @@ export async function getVisibleTasks(user: SessionUser, tabId: string) {
       deletedAt: null,
       NOT: { values: { path: ["done"], equals: true } },
     },
-    orderBy: { position: "asc" },
+    orderBy: { position: "desc" }, // newest task first
   });
 
   const visibleKeys = await getVisibleFieldKeys(user, tabId);
@@ -352,7 +352,7 @@ export async function getMyTaskSections(
         { assignees: { some: { userId: user.id } } },
       ],
     },
-    orderBy: { position: "asc" },
+    orderBy: { position: "desc" }, // newest task first
   });
   const personalRows = personal.filter(
     (t) => !(t.tabId && accessible.has(t.tabId)),
@@ -397,7 +397,7 @@ export async function getEveryoneTasks(): Promise<GridRow[]> {
       deletedAt: null,
       NOT: { values: { path: ["done"], equals: true } },
     },
-    orderBy: { position: "asc" },
+    orderBy: { position: "desc" }, // newest task first
   });
   return tasks.map(toRow);
 }
@@ -606,7 +606,7 @@ export async function getBoardTasks(user: SessionUser): Promise<BoardTask[]> {
       tab: { select: { name: true } },
       assignees: { select: { userId: true } },
     },
-    orderBy: { position: "asc" },
+    orderBy: { position: "desc" }, // newest task first
   });
 
   const out: BoardTask[] = [];
