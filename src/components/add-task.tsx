@@ -9,6 +9,7 @@ import { useUndo } from "@/components/undo-context";
 import { createTask, deleteTaskForever } from "@/app/(app)/actions";
 
 export type TagUser = { id: string; label: string };
+export type TagBrood = { id: string; name: string };
 
 /**
  * "Add task" button + popup. Type the task, optionally tag people, and Push
@@ -19,18 +20,21 @@ export function AddTask({
   scope,
   tabId,
   users,
+  broods = [],
   scheduledDay,
   compact = false,
 }: {
   scope: "BROOD" | "EVERYONE" | "PRIVATE";
   tabId?: string | null;
   users: TagUser[];
+  broods?: TagBrood[];
   scheduledDay?: number | null;
   compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState("");
   const [tagged, setTagged] = React.useState<string[]>([]);
+  const [taggedBroods, setTaggedBroods] = React.useState<string[]>([]);
   const [pending, start] = React.useTransition();
   const { push } = useUndo();
 
@@ -38,6 +42,7 @@ export function AddTask({
     setOpen(false);
     setText("");
     setTagged([]);
+    setTaggedBroods([]);
   };
 
   const submit = () => {
@@ -48,6 +53,7 @@ export function AddTask({
         scope,
         tabId: tabId ?? null,
         taggedUserIds: tagged,
+        taggedBroodIds: taggedBroods,
         scheduledDay: scheduledDay ?? null,
       });
       close();
@@ -58,6 +64,11 @@ export function AddTask({
 
   const toggle = (id: string) =>
     setTagged((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
+
+  const toggleBrood = (id: string) =>
+    setTaggedBroods((t) =>
+      t.includes(id) ? t.filter((x) => x !== id) : [...t, id],
+    );
 
   return (
     <>
@@ -142,6 +153,38 @@ export function AddTask({
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {broods.length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.15em] text-faint">
+                    Tag broods
+                  </p>
+                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                    {broods.map((b) => {
+                      const on = taggedBroods.includes(b.id);
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => toggleBrood(b.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                            on
+                              ? "border-accent/40 bg-accent/10 text-accent"
+                              : "border-border text-muted hover:text-ink",
+                          )}
+                        >
+                          {on && <Check className="h-3 w-3" />}
+                          {b.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-faint">
+                    Tagging a brood assigns everyone in it.
+                  </p>
                 </div>
               )}
 

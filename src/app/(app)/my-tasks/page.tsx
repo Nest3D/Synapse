@@ -4,6 +4,7 @@ import {
   getApprovedUser,
   getMyTaskSections,
   getVisibleTabs,
+  getTaggableBroods,
   isAdmin,
 } from "@/lib/access";
 import { SectionedGrid, type Section } from "@/components/sectioned-grid";
@@ -13,7 +14,7 @@ export default async function MyTasksPage() {
   const user = await getApprovedUser();
   if (!user) redirect("/login");
 
-  const [sections, broods, users] = await Promise.all([
+  const [sections, broods, users, taggableBroods] = await Promise.all([
     getMyTaskSections(user),
     getVisibleTabs(user),
     prisma.user.findMany({
@@ -21,6 +22,7 @@ export default async function MyTasksPage() {
       orderBy: [{ name: "asc" }],
       select: { id: true, name: true, nickname: true, email: true },
     }),
+    getTaggableBroods(user),
   ]);
 
   const tagUsers: TagUser[] = users.map((u) => ({
@@ -43,7 +45,7 @@ export default async function MyTasksPage() {
             Your private tasks, what you&apos;re tagged on, and your broods.
           </p>
         </div>
-        <AddTask scope="PRIVATE" users={tagUsers} />
+        <AddTask scope="PRIVATE" users={tagUsers} broods={taggableBroods} />
       </div>
 
       <SectionedGrid

@@ -4,7 +4,7 @@ import * as React from "react";
 import { GripVertical, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { AddTask, type TagUser } from "@/components/add-task";
+import { AddTask, type TagUser, type TagBrood } from "@/components/add-task";
 import { setTaskDay } from "@/app/(app)/actions";
 
 type BoardTask = {
@@ -47,9 +47,11 @@ function defaultRects(): Rect[] {
 export function WeekBoard({
   initialTasks,
   members,
+  broods,
 }: {
   initialTasks: BoardTask[];
   members: TagUser[];
+  broods: TagBrood[];
 }) {
   const [tasks, setTasks] = React.useState(initialTasks);
   const [, start] = React.useTransition();
@@ -155,6 +157,7 @@ export function WeekBoard({
         move={move}
         hidden={hidden}
         members={members}
+        broods={broods}
       />
 
       <div className="hidden md:block">
@@ -218,6 +221,7 @@ export function WeekBoard({
                   scope="PRIVATE"
                   scheduledDay={day}
                   users={members}
+                  broods={broods}
                   compact
                 />
               }
@@ -244,11 +248,13 @@ function MobileBoard({
   move,
   hidden,
   members,
+  broods,
 }: {
   tasks: BoardTask[];
   move: (taskId: string, day: number | null) => void;
   hidden: boolean[];
   members: TagUser[];
+  broods: TagBrood[];
 }) {
   const groups: { key: string; label: string; day: number | null }[] = [
     { key: "none", label: "Unscheduled", day: null },
@@ -312,6 +318,7 @@ function MobileBoard({
                 scope="PRIVATE"
                 scheduledDay={g.day}
                 users={members}
+                broods={broods}
                 compact
               />
             </div>

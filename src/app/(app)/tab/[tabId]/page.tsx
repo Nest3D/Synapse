@@ -6,6 +6,7 @@ import {
   canAccessTab,
   getVisibleTasks,
   getVisibleFields,
+  getTaggableBroods,
   getTab,
   isAdmin,
 } from "@/lib/access";
@@ -31,7 +32,7 @@ export default async function TabPage({
   ]);
   if (!access || !tab) notFound();
 
-  const [fields, tasks, users] = await Promise.all([
+  const [fields, tasks, users, taggableBroods] = await Promise.all([
     getVisibleFields(user, tabId),
     getVisibleTasks(user, tabId),
     prisma.user.findMany({
@@ -39,6 +40,7 @@ export default async function TabPage({
       orderBy: [{ name: "asc" }],
       select: { id: true, name: true, nickname: true, email: true },
     }),
+    getTaggableBroods(user),
   ]);
 
   // Legacy person columns (tagging removed) are not rendered.
@@ -83,7 +85,12 @@ export default async function TabPage({
           {((isAdmin(user) && !tab.ownerId) || tab.ownerId === user.id) && (
             <DeleteBroodButton tabId={tabId} name={tab.name} />
           )}
-          <AddTask scope="BROOD" tabId={tabId} users={tagUsers} />
+          <AddTask
+            scope="BROOD"
+            tabId={tabId}
+            users={tagUsers}
+            broods={taggableBroods}
+          />
         </div>
       </div>
 

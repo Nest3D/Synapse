@@ -10,6 +10,7 @@ import {
   canManageLooseTask,
   assertFieldVisible,
   isAdmin,
+  getTaggableBroods,
 } from "@/lib/access";
 import { defaultDeadlines } from "@/lib/alerts";
 import { after } from "next/server";
@@ -38,12 +39,33 @@ export async function createTask(input: {
   scope: Scope;
   tabId?: string | null;
   taggedUserIds?: string[];
+  taggedBroodIds?: string[];
   scheduledDay?: number | null;
 }) {
   const user = await requireUser();
   const text = input.text.trim();
   if (!text) throw new Error("Task text required");
   const tagged = input.taggedUserIds ?? [];
+
+  // Tagging a brood assigns all its members. Only broods the creator may tag
+  // count; expand them to their approved members and union with tagged people.
+  const broodIds = input.taggedBroodIds ?? [];
+  let broodMemberIds: string[] = [];
+  if (broodIds.length) {
+    const accessible = new Set(
+      (await getTaggableBroods(user)).map((b) => b.id),
+    );
+    const validBroodIds = broodIds.filter((id) => accessible.has(id));
+    if (validBroodIds.length) {
+      broodMemberIds = (
+        await prisma.broodMember.findMany({
+          where: { tabId: { in: validBroodIds }, user: { status: "approved" } },
+          select: { userId: true },
+        })
+      ).map((m) => m.userId);
+    }
+  }
+  const taggedIds = [...new Set([...tagged, ...broodMemberIds])];
 
   let tabId: string | null = null;
   if (input.scope === "BROOD") {
@@ -65,7 +87,7 @@ export async function createTask(input: {
 
   const validTagged = (
     await prisma.user.findMany({
-      where: { id: { in: tagged }, status: "approved" },
+      where: { id: { in: taggedIds }, status: "approved" },
       select: { id: true },
     })
   ).map((u) => u.id);

@@ -125,6 +125,27 @@ export const getVisibleTabs = cache(async (user: SessionUser) => {
   return tabs.filter((t) => broodVisibleTo(user, t));
 });
 
+/**
+ * Shared broods a user may TAG on a task (tagging assigns all the brood's
+ * members). Admins may tag any shared brood; everyone else, the shared broods
+ * they can access. Personal broods are never taggable.
+ */
+export const getTaggableBroods = cache(
+  async (user: SessionUser): Promise<{ id: string; name: string }[]> => {
+    if (isAdmin(user)) {
+      return prisma.tab.findMany({
+        where: { ownerId: null, archivedAt: null },
+        orderBy: { order: "asc" },
+        select: { id: true, name: true },
+      });
+    }
+    const tabs = await getVisibleTabs(user);
+    return tabs
+      .filter((t) => !t.ownerId)
+      .map((t) => ({ id: t.id, name: t.name }));
+  },
+);
+
 /** True if the user may access a given brood at all. Cached per request. */
 export const canAccessTab = cache(
   async (user: SessionUser, tabId: string): Promise<boolean> => {
