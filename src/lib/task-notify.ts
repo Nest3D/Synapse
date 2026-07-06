@@ -46,7 +46,7 @@ export async function notifyTaskLinked(
 
     for (const u of users) {
       const to = u.phone as string;
-      const ok = await sendWhatsAppTemplate(to, body);
+      const result = await sendWhatsAppTemplate(to, body);
       await prisma.whatsAppLog.create({
         data: {
           rawPayload: { to, body } as Prisma.InputJsonObject,
@@ -55,8 +55,8 @@ export async function notifyTaskLinked(
             taskId: ctx.taskId,
             to,
           } as Prisma.InputJsonObject,
-          status: ok ? "ok" : "error",
-          error: ok ? null : "send failed",
+          status: result.ok ? "ok" : "error",
+          error: result.ok ? null : (result.error ?? "send failed"),
         },
       });
     }

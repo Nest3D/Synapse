@@ -372,16 +372,21 @@ export function buildTemplatePayload(
   };
 }
 
-/** Send an approved template message. No-op (false) unless fully configured. */
+/**
+ * Send an approved template message. Returns `{ ok: false, error }` (never
+ * throws) when unconfigured or when Meta rejects it — the error carries Meta's
+ * status + response body so failures are diagnosable from the WhatsApp log.
+ */
 export async function sendWhatsAppTemplate(
   to: string,
   bodyParams: string[],
-): Promise<boolean> {
+): Promise<{ ok: boolean; error?: string }> {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const template = process.env.WHATSAPP_TASK_TEMPLATE;
   const lang = process.env.WHATSAPP_TEMPLATE_LANG;
-  if (!token || !phoneId || !template || !lang || !to) return false;
+  if (!token || !phoneId || !template || !lang || !to)
+    return { ok: false, error: "not configured" };
   try {
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${phoneId}/messages`,
@@ -396,8 +401,10 @@ export async function sendWhatsAppTemplate(
         ),
       },
     );
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { ok: true };
+    const detail = await res.text().catch(() => "");
+    return { ok: false, error: `HTTP ${res.status}: ${detail.slice(0, 600)}` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "fetch error" };
   }
 }
