@@ -22,30 +22,6 @@ export async function notifyTaskLinked(
   recipientUserIds: string[],
   ctx: TaskLinkContext,
 ): Promise<void> {
-  // TEMP DIAGNOSTIC — logs on every call so we can see if after() fired and
-  // which env vars are present on prod. Remove once the issue is found.
-  try {
-    await prisma.whatsAppLog.create({
-      data: {
-        rawPayload: { debug: "notify-entry" } as Prisma.InputJsonObject,
-        parsed: {
-          direction: "diag",
-          configured: whatsAppTemplateConfigured(),
-          hasToken: !!process.env.WHATSAPP_TOKEN,
-          hasPhoneId: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
-          hasTemplate: !!process.env.WHATSAPP_TASK_TEMPLATE,
-          hasLang: !!process.env.WHATSAPP_TEMPLATE_LANG,
-          recipients: recipientUserIds.length,
-          taskId: ctx.taskId,
-        } as Prisma.InputJsonObject,
-        status: "diag",
-        error: null,
-      },
-    });
-  } catch {
-    /* ignore */
-  }
-
   // Not configured (e.g. template not yet approved) → no push, no log noise.
   if (!whatsAppTemplateConfigured()) return;
   const ids = [...new Set(recipientUserIds)];
