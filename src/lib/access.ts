@@ -34,6 +34,15 @@ export function isAdmin(user: SessionUser | null): boolean {
   return user?.role === "admin" && user.status === "approved";
 }
 
+/** Display name for an actor in notifications: nickname → name → email. */
+export async function getActorName(user: SessionUser): Promise<string> {
+  const rec = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { nickname: true },
+  });
+  return rec?.nickname ?? user.name ?? user.email ?? "Someone";
+}
+
 /**
  * Whether a single column is visible to a user, given its access rule.
  * Admins see everything; ALL is public; INCLUDE/EXCLUDE check the user list.

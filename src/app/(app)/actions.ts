@@ -11,6 +11,7 @@ import {
   assertFieldVisible,
   isAdmin,
   getTaggableBroods,
+  getActorName,
 } from "@/lib/access";
 import { defaultDeadlines } from "@/lib/alerts";
 import { after } from "next/server";
@@ -117,7 +118,7 @@ export async function createTask(input: {
     },
   });
 
-  const actorName = user.name ?? user.email ?? "Someone";
+  const actorName = await getActorName(user);
   const recipients = validTagged.filter((id) => id !== user.id);
   if (recipients.length) {
     await prisma.notification.createMany({
@@ -246,7 +247,7 @@ export async function moveTask(
   if (notifyUserId) {
     const v = task.values as Record<string, unknown>;
     const text = typeof v.description === "string" ? v.description : "a task";
-    const actorName = user.name ?? user.email ?? "Someone";
+    const actorName = await getActorName(user);
     if (notifyUserId !== user.id) {
       await prisma.notification.create({
         data: {
@@ -364,7 +365,7 @@ export async function tagTask(
 
   const v = task.values as Record<string, unknown>;
   const text = typeof v.description === "string" ? v.description : "a task";
-  const actorName = user.name ?? user.email ?? "Someone";
+  const actorName = await getActorName(user);
   const recipients = toAdd.filter((id) => id !== user.id);
   if (recipients.length) {
     await prisma.notification.createMany({
