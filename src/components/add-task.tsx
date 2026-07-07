@@ -4,6 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useUndo } from "@/components/undo-context";
 import { createTask, deleteTaskForever } from "@/app/(app)/actions";
@@ -101,6 +102,13 @@ export function AddTask({
               exit={{ opacity: 0, scale: 0.97, y: 8 }}
               transition={{ duration: 0.15 }}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                // Ctrl/Cmd+Enter pushes the task from anywhere in the window.
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
               className="glass card-float w-full max-w-lg rounded-xl border border-border p-6"
             >
               <h2 className="font-display text-lg font-semibold">New task</h2>
@@ -116,12 +124,6 @@ export function AddTask({
                 autoFocus
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    submit();
-                  }
-                }}
                 rows={3}
                 placeholder="What needs doing?  (Ctrl+Enter to push)"
                 className="mt-4 w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
@@ -197,13 +199,15 @@ export function AddTask({
                 >
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  disabled={pending || !text.trim()}
-                  onClick={submit}
-                >
-                  Push
-                </Button>
+                <Tooltip label="Ctrl + Enter">
+                  <Button
+                    size="sm"
+                    disabled={pending || !text.trim()}
+                    onClick={submit}
+                  >
+                    Push
+                  </Button>
+                </Tooltip>
               </div>
             </motion.div>
           </motion.div>
